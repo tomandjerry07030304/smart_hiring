@@ -256,20 +256,34 @@ async function handleLogin(e) {
             body: JSON.stringify({ email, password, role: currentRole })
         });
         
-        const data = await response.json();
-        
-        if (response.ok) {
-            authToken = data.access_token;
-            currentUser = data.user;
-            localStorage.setItem('authToken', authToken);
-            localStorage.setItem('currentUser', JSON.stringify(currentUser));
-            localStorage.setItem('currentRole', currentRole);
-            showDashboard(currentRole);
-        } else {
-            throw new Error(data.error || data.message || 'Login failed');
+        // Check if response is OK before trying to parse JSON
+        if (!response.ok) {
+            // Try to parse error message, but handle non-JSON responses
+            let errorMessage = 'Login failed. Please try again.';
+            try {
+                const data = await response.json();
+                errorMessage = data.error || data.message || errorMessage;
+            } catch (jsonError) {
+                // If JSON parsing fails, use status-based message
+                if (response.status === 502) {
+                    errorMessage = 'Service temporarily unavailable. Please try again in a moment.';
+                } else if (response.status === 500) {
+                    errorMessage = 'Server error. Please contact support.';
+                }
+            }
+            throw new Error(errorMessage);
         }
+        
+        const data = await response.json();
+        authToken = data.access_token;
+        currentUser = data.user;
+        localStorage.setItem('authToken', authToken);
+        localStorage.setItem('currentUser', JSON.stringify(currentUser));
+        localStorage.setItem('currentRole', currentRole);
+        showDashboard(currentRole);
     } catch (error) {
-        errorDiv.textContent = error.message;
+        console.error('Login error:', error);
+        errorDiv.textContent = error.message || 'An unexpected error occurred';
         errorDiv.classList.add('show');
     } finally {
         btn.disabled = false;
