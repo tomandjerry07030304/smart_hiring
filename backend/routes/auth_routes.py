@@ -113,6 +113,10 @@ def login():
         if not user:
             return jsonify({'error': 'Invalid credentials'}), 401
         
+        # Check if password_hash exists
+        if 'password_hash' not in user:
+            return jsonify({'error': 'Account configuration error. Please contact administrator.'}), 500
+        
         # Check password
         if not bcrypt.check_password_hash(user['password_hash'], password):
             return jsonify({'error': 'Invalid credentials'}), 401
@@ -141,8 +145,16 @@ def login():
             }
         }), 200
         
+    except KeyError as e:
+        # Specific handling for missing keys
+        print(f"KeyError in login: {str(e)}")
+        return jsonify({'error': f'Account data error: missing {str(e)}'}), 500
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        # General exception handling
+        print(f"Login error: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': 'Login failed. Please try again.'}), 500
 
 @bp.route('/profile', methods=['GET'])
 @jwt_required()
