@@ -75,22 +75,39 @@ app.register_blueprint(candidate_routes.bp, url_prefix='/api/candidates')
 @app.route('/')
 def home():
     """Serve the frontend application"""
-    return send_from_directory(app.static_folder, 'index.html')
+    try:
+        print(f"🏠 Serving index.html from: {app.static_folder}")
+        print(f"📁 Static folder exists: {os.path.exists(app.static_folder)}")
+        index_path = os.path.join(app.static_folder, 'index.html')
+        print(f"📄 Index.html exists: {os.path.exists(index_path)}")
+        return send_from_directory(app.static_folder, 'index.html')
+    except Exception as e:
+        print(f"❌ Error serving index.html: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': 'Failed to serve frontend', 'details': str(e)}), 500
 
 # Catch-all route for frontend - serve index.html for any non-API routes
 @app.route('/<path:path>')
 def catch_all(path):
     """Serve frontend for all non-API routes"""
-    # If it's an API request that doesn't exist, return 404 JSON
-    if path.startswith('api/'):
-        return jsonify({'error': 'API endpoint not found'}), 404
-    
-    # Try to serve the requested file
     try:
-        return send_from_directory(app.static_folder, path)
-    except:
-        # If file doesn't exist, serve index.html (for client-side routing)
-        return send_from_directory(app.static_folder, 'index.html')
+        # If it's an API request that doesn't exist, return 404 JSON
+        if path.startswith('api/'):
+            return jsonify({'error': 'API endpoint not found'}), 404
+        
+        # Try to serve the requested file
+        file_path = os.path.join(app.static_folder, path)
+        if os.path.exists(file_path) and os.path.isfile(file_path):
+            return send_from_directory(app.static_folder, path)
+        else:
+            # If file doesn't exist, serve index.html (for client-side routing)
+            return send_from_directory(app.static_folder, 'index.html')
+    except Exception as e:
+        print(f"❌ Error in catch_all for path '{path}': {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': 'Failed to serve resource', 'path': path}), 500
 
 # API info endpoint
 @app.route('/api')
