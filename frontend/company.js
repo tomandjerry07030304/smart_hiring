@@ -228,7 +228,7 @@ async function submitJob(e) {
     };
     
     try {
-        const response = await fetch(`${API_URL}/jobs`, {
+        const response = await fetch(`${API_URL}/jobs/create`, {
             method: 'POST',
             headers: {
                 'Authorization': `Bearer ${authToken}`,
@@ -237,14 +237,17 @@ async function submitJob(e) {
             body: JSON.stringify(jobData)
         });
         
+        const data = await response.json();
+        
         if (response.ok) {
             alert('✓ Job posted successfully!');
             e.target.closest('.modal').remove();
             loadCompanyJobs();
         } else {
-            throw new Error('Failed to post job');
+            alert('Failed to post job: ' + (data.error || 'Unknown error'));
         }
     } catch (error) {
+        console.error('Error posting job:', error);
         alert('Failed to post job: ' + error.message);
     }
 }
