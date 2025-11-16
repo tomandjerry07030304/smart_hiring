@@ -363,3 +363,91 @@ function showDashboard(role) {
             break;
     }
 }
+
+function loadAdminDashboard() {
+    console.log('Loading Admin Dashboard...');
+    document.getElementById('authPage').style.display = 'none';
+    document.body.innerHTML = `
+        <div style="padding: 40px; max-width: 1200px; margin: 0 auto;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px;">
+                <h1 style="color: #4F46E5;">Admin Dashboard</h1>
+                <button onclick="logout()" style="padding: 10px 20px; background: #ef4444; color: white; border: none; border-radius: 8px; cursor: pointer;">Logout</button>
+            </div>
+            <div style="background: white; padding: 30px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+                <h2>Welcome, ${currentUser.full_name}!</h2>
+                <p style="color: #6b7280; margin-top: 10px;">Email: ${currentUser.email}</p>
+                <p style="color: #6b7280;">Role: Administrator</p>
+                <div style="margin-top: 30px; padding: 20px; background: #f3f4f6; border-radius: 8px;">
+                    <h3>🎉 Deployment Successful!</h3>
+                    <p style="margin-top: 10px;">Your Smart Hiring System is now live on Render.com</p>
+                    <p style="margin-top: 10px; color: #6b7280; font-size: 14px;">
+                        <strong>Note:</strong> Some features are temporarily disabled due to deployment size constraints:
+                    </p>
+                    <ul style="margin-top: 10px; color: #6b7280; font-size: 14px;">
+                        <li>✓ Authentication System - Active</li>
+                        <li>✓ Job Management - Active</li>
+                        <li>✓ Candidate Management - Active</li>
+                        <li>⚠ Assessment System - Disabled (ML libraries removed)</li>
+                        <li>⚠ Dashboard Analytics - Disabled (pandas removed)</li>
+                        <li>⚠ PDF/DOCX Resume Parsing - Disabled (size constraints)</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+function loadCompanyDashboard() {
+    console.log('Loading Company Dashboard...');
+    document.getElementById('authPage').style.display = 'none';
+    document.body.innerHTML = `
+        <div style="padding: 40px; max-width: 1200px; margin: 0 auto;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px;">
+                <h1 style="color: #4F46E5;">Company Dashboard</h1>
+                <button onclick="logout()" style="padding: 10px 20px; background: #ef4444; color: white; border: none; border-radius: 8px; cursor: pointer;">Logout</button>
+            </div>
+            <div style="background: white; padding: 30px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+                <h2>Welcome, ${currentUser.full_name}!</h2>
+                <p style="color: #6b7280; margin-top: 10px;">Email: ${currentUser.email}</p>
+                <p style="color: #6b7280;">Role: Recruiter</p>
+                <div style="margin-top: 30px;">
+                    <h3>Company Dashboard Features Coming Soon</h3>
+                    <ul style="margin-top: 15px; color: #6b7280;">
+                        <li>Post and manage job openings</li>
+                        <li>Review candidate applications</li>
+                        <li>Schedule interviews</li>
+                        <li>Track hiring pipeline</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+function loadCandidateDashboard() {
+    console.log('Loading Candidate Dashboard...');
+    document.getElementById('authPage').style.display = 'none';
+    document.body.innerHTML = `
+        <div style="padding: 40px; max-width: 1200px; margin: 0 auto;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px;">
+                <h1 style="color: #4F46E5;">Candidate Dashboard</h1>
+                <button onclick="logout()" style="padding: 10px 20px; background: #ef4444; color: white; border: none; border-radius: 8px; cursor: pointer;">Logout</button>
+            </div>
+            <div style="background: white; padding: 30px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+                <h2>Welcome, ${currentUser.full_name}!</h2>
+                <p style="color: #6b7280; margin-top: 10px;">Email: ${currentUser.email}</p>
+                <p style="color: #6b7280;">Role: Candidate</p>
+                <div style="margin-top: 30px;">
+                    <h3>Candidate Dashboard Features Coming Soon</h3>
+                    <ul style="margin-top: 15px; color: #6b7280;">
+                        <li>Browse available jobs</li>
+                        <li>Submit applications</li>
+                        <li>Track application status</li>
+                        <li>Take assessments</li>
+                        <li>Upload and manage resume</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    `;
+}
