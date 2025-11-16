@@ -1,9 +1,9 @@
 """
-Fairness and Bias Detection Service
-Simplified version for Vercel deployment (ML libraries removed for size constraints)
+Fairness & Bias Prevention Service
+Simplified version for Render deployment (ML libraries removed for size constraints)
 """
 
-# ML libraries not available in Vercel (size constraints)
+# ML libraries not available in Render free tier (size constraints)
 from collections import defaultdict
 
 try:

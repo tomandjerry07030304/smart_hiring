@@ -1,6 +1,6 @@
 import re
 
-# ML libraries not available in Vercel (size constraints)
+# ML libraries not available in Render free tier (size constraints)
 # Simplified matching without scikit-learn
 def _get_tfidf_vectorizer():
     return None

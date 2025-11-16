@@ -218,8 +218,8 @@ A comprehensive security audit was performed on the Smart Hiring System. **All c
    ```
 
 3. **Enable HTTPS**
-   - Use Render, Vercel, or other platform with automatic HTTPS
-   - Or configure SSL certificates manually
+   - Render provides automatic HTTPS (already configured)
+   - Or configure SSL certificates manually for self-hosted deployments
 
 4. **Set FLASK_ENV**
    ```bash
