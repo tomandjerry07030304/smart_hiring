@@ -117,38 +117,56 @@ def register():
 def login():
     """Login user"""
     try:
+        print("🔐 Login attempt started")
         data = request.get_json()
+        print(f"📥 Received data: {data.get('email', 'no email')} (password hidden)")
         
         if 'email' not in data or 'password' not in data:
+            print("❌ Missing email or password")
             return jsonify({'error': 'Email and password required'}), 400
         
         # Sanitize inputs
+        print("🧹 Sanitizing email...")
         email = sanitizer.sanitize_email(data['email'])
         if not email:
+            print("❌ Email validation failed")
             return jsonify({'error': 'Invalid email format'}), 400
         
+        print(f"✅ Email sanitized: {email}")
         password = data['password']
         
+        print("🔌 Connecting to database...")
         db = get_db()
         users_collection = db['users']
         
         # Find user
+        print(f"🔍 Looking up user: {email}")
         user = users_collection.find_one({'email': email})
         if not user:
+            print("❌ User not found")
             return jsonify({'error': 'Invalid credentials'}), 401
+        
+        print(f"✅ User found: {user.get('email')} (role: {user.get('role')})")
         
         # Check if password_hash exists
         if 'password_hash' not in user:
+            print("❌ No password_hash in user document")
             return jsonify({'error': 'Account configuration error. Please contact administrator.'}), 500
         
+        print("🔒 Checking password...")
         # Check password
         if not bcrypt.check_password_hash(user['password_hash'], password):
+            print("❌ Password check failed")
             return jsonify({'error': 'Invalid credentials'}), 401
+        
+        print("✅ Password correct")
         
         # Check if user is active
         if not user.get('is_active', True):
+            print("❌ User account is deactivated")
             return jsonify({'error': 'Account is deactivated'}), 403
         
+        print("🎫 Generating JWT token...")
         # Generate JWT token
         access_token = create_access_token(
             identity={
@@ -157,6 +175,7 @@ def login():
             }
         )
         
+        print("✅ Login successful!")
         return jsonify({
             'message': 'Login successful',
             'access_token': access_token,
