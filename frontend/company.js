@@ -129,16 +129,16 @@ async function loadCompanyJobs() {
                             <div class="job-header">
                                 <div>
                                     <h3 class="job-title">${job.title}</h3>
-                                    <p class="job-company">${job.department}</p>
+                                    <p class="job-company">${job.company_name || job.department || 'Smart Hiring'}</p>
                                 </div>
-                                <span class="badge badge-${job.status === 'active' ? 'success' : 'warning'}">
+                                <span class="badge badge-${job.status === 'open' ? 'success' : 'warning'}">
                                     ${job.status}
                                 </span>
                             </div>
-                            <p class="job-description">${job.description.substring(0, 150)}...</p>
+                            <p class="job-description" style="white-space: pre-line;">${job.description.substring(0, 200)}...</p>
                             <div class="job-meta">
-                                <span>📍 ${job.location}</span>
-                                <span>💼 ${job.job_type}</span>
+                                <span>📍 ${job.location || 'Remote'}</span>
+                                <span>💼 ${job.job_type || 'Full-time'}</span>
                                 <span>📋 ${job.applications_count || 0} applications</span>
                             </div>
                             <div class="job-tags">

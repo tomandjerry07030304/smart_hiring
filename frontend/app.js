@@ -19,7 +19,13 @@ function checkAuth() {
     currentRole = localStorage.getItem('currentRole');
     
     if (authToken && currentUser && currentRole) {
-        showDashboard(currentRole);
+        // Validate that the stored role matches the user's actual role
+        if (currentUser.role && currentUser.role !== currentRole) {
+            console.warn('Role mismatch detected. Correcting...');
+            currentRole = currentUser.role;
+            localStorage.setItem('currentRole', currentRole);
+        }
+        showDashboard(currentUser.role || currentRole);
     } else {
         showRoleSelection();
     }
@@ -277,10 +283,19 @@ async function handleLogin(e) {
         const data = await response.json();
         authToken = data.access_token;
         currentUser = data.user;
+        
+        // Use the actual role from the database, not the selected portal
+        const actualRole = data.user.role;
+        
+        // Validate role matches selected portal (optional strict check)
+        if (currentRole !== 'admin' && actualRole !== currentRole && actualRole !== 'admin') {
+            throw new Error(`This account is registered as ${actualRole}. Please use the ${actualRole} portal.`);
+        }
+        
         localStorage.setItem('authToken', authToken);
         localStorage.setItem('currentUser', JSON.stringify(currentUser));
-        localStorage.setItem('currentRole', currentRole);
-        showDashboard(currentRole);
+        localStorage.setItem('currentRole', actualRole);  // Save actual role
+        showDashboard(actualRole);
     } catch (error) {
         console.error('Login error:', error);
         errorDiv.textContent = error.message || 'An unexpected error occurred';
@@ -368,16 +383,29 @@ function logout() {
 }
 
 function showDashboard(role) {
+    // Ensure role matches the logged-in user's role
+    const userRole = currentUser?.role || role;
+    
+    // Redirect if trying to access wrong portal
+    if (userRole !== role) {
+        console.warn(`Access denied: User role is ${userRole}, attempting to access ${role} portal`);
+        role = userRole;
+    }
+    
     switch(role) {
         case 'admin':
             loadAdminDashboard();
             break;
         case 'company':
+        case 'recruiter':
             loadCompanyDashboard();
             break;
         case 'candidate':
             loadCandidateDashboard();
             break;
+        default:
+            console.error('Unknown role:', role);
+            logout();
     }
 }
 

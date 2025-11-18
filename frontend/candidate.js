@@ -53,12 +53,18 @@ async function loadCandidateBrowse() {
     container.innerHTML = '<div class="loading">Loading available jobs...</div>';
     
     try {
-        const response = await fetch(`${API_URL}/jobs`, {
+        const response = await fetch(`${API_URL}/jobs/list?status=open`, {
             headers: { 'Authorization': `Bearer ${authToken}` }
         });
         
+        if (!response.ok) {
+            throw new Error('Failed to load jobs');
+        }
+        
         const data = await response.json();
         const jobs = data.jobs || [];
+        
+        console.log(`Loaded ${jobs.length} jobs for candidates`);
         
         if (jobs.length === 0) {
             container.innerHTML = '<div class="empty-state">No jobs available at the moment. Check back soon!</div>';
@@ -74,19 +80,19 @@ async function loadCandidateBrowse() {
             </div>
             <div class="job-grid" id="jobsGrid">
                 ${jobs.map(job => `
-                    <div class="job-card" data-title="${job.title.toLowerCase()}" data-skills="${(job.required_skills || []).join(' ').toLowerCase()}" data-location="${job.location.toLowerCase()}">
+                    <div class="job-card" data-title="${job.title.toLowerCase()}" data-skills="${(job.required_skills || []).join(' ').toLowerCase()}" data-location="${(job.location || '').toLowerCase()}">
                         <div class="job-header">
                             <div>
                                 <h3 class="job-title">${job.title}</h3>
                                 <p class="job-company">${job.company_name || 'Company'}</p>
                             </div>
-                            <span class="badge badge-success">Active</span>
+                            <span class="badge badge-success">Open</span>
                         </div>
-                        <p class="job-description">${job.description.substring(0, 150)}...</p>
+                        <p class="job-description" style="white-space: pre-line;">${job.description.substring(0, 200)}...</p>
                         <div class="job-meta">
-                            <span>📍 ${job.location}</span>
-                            <span>💼 ${job.job_type}</span>
-                            <span>📅 Posted ${new Date(job.created_at).toLocaleDateString()}</span>
+                            <span>📍 ${job.location || 'Remote'}</span>
+                            <span>💼 ${job.job_type || 'Full-time'}</span>
+                            <span>📅 Posted ${job.posted_date ? new Date(job.posted_date).toLocaleDateString() : 'Recently'}</span>
                         </div>
                         <div class="job-tags">
                             ${(job.required_skills || []).slice(0, 5).map(s => `<span class="tag">${s}</span>`).join('')}
@@ -100,7 +106,13 @@ async function loadCandidateBrowse() {
             </div>
         `;
     } catch (error) {
-        container.innerHTML = '<div class="empty-state">Failed to load jobs</div>';
+        console.error('Error loading jobs:', error);
+        container.innerHTML = `
+            <div class="empty-state">
+                <p>❌ Failed to load jobs. Please try again later.</p>
+                <button class="btn btn-primary" onclick="loadCandidateBrowse()">Retry</button>
+            </div>
+        `;
     }
 }
 
