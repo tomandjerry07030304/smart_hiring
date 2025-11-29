@@ -1,6 +1,6 @@
 """
 Smart Hiring System - Main Application Entry Point
-Version: 1.2.0 - JWT Fix Applied + MongoDB Connected
+Version: 2.0.0 - Enterprise Edition with Security, Workers, GDPR Compliance
 Initializes Flask app with all routes and configurations
 © 2025 Smart Hiring System - Proprietary Software - All Rights Reserved
 """
@@ -14,8 +14,20 @@ from flask_cors import CORS
 from flask_jwt_extended import JWTManager
 from config.config import config
 from backend.models.database import Database
-from backend.routes import auth_routes, job_routes, candidate_routes, company_routes, email_preferences_routes, assessment_routes, audit_routes
+from backend.routes import auth_routes, job_routes, candidate_routes, company_routes, email_preferences_routes, assessment_routes, audit_routes, dsr_routes
 from backend.utils.license_validator import check_deployment_authorization, require_valid_license
+from backend.utils.env_config import env_config, print_startup_banner
+from backend.workers.job_processor import start_workers, stop_workers
+import atexit
+import logging
+
+# Configure logging
+logging.basicConfig(
+    level=getattr(logging, env_config.log_level),
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
+
 # Disabled for Render free tier: dashboard_routes (require ML libraries)
 
 # DEPLOYMENT AUTHORIZATION CHECK (Optional - can be disabled for cloud deployments)
@@ -73,8 +85,27 @@ app.register_blueprint(company_routes.bp, url_prefix='/api/company')
 app.register_blueprint(email_preferences_routes.bp, url_prefix='/api/email')
 app.register_blueprint(assessment_routes.bp, url_prefix='/api/assessments')
 app.register_blueprint(audit_routes.bp, url_prefix='/api/audit')
+app.register_blueprint(dsr_routes.bp, url_prefix='/api/dsr')
 # Disabled for Render free tier (require ML libraries):
 # app.register_blueprint(dashboard_routes.bp, url_prefix='/api/dashboard')
+
+# Start background workers if enabled
+if env_config.enable_background_workers and env_config.enable_redis:
+    try:
+        logger.info("🚀 Starting background workers...")
+        start_workers(num_workers=env_config.num_workers)
+        
+        # Register cleanup on shutdown
+        def cleanup_workers():
+            logger.info("🛑 Stopping background workers...")
+            stop_workers()
+        
+        atexit.register(cleanup_workers)
+        logger.info(f"✅ {env_config.num_workers} background workers started")
+    except Exception as e:
+        logger.warning(f"⚠️ Failed to start workers: {e}. Continuing without workers...")
+else:
+    logger.info("ℹ️ Background workers disabled (enable with ENABLE_BACKGROUND_WORKERS=true and Redis)")
 
 # Root endpoint - serve frontend
 @app.route('/')
@@ -153,18 +184,14 @@ def internal_error(error):
     return jsonify({'error': 'Internal server error'}), 500
 
 if __name__ == '__main__':
-    print("\n" + "="*60)
-    print("🚀 Starting Smart Hiring System API")
-    print("="*60)
-    print(f"📍 Environment: {env}")
-    print(f"🔗 Running on: http://localhost:5000")
-    print(f"🗄️  Database: {app.config['DB_NAME']}")
-    print("="*60 + "\n")
+    # Print startup banner
+    print_startup_banner()
     
+    # Start Flask app
     app.run(
         host='0.0.0.0',
         port=5000,
-        debug=True,
+        debug=env_config.debug,
         use_reloader=False,
         threaded=True
     )
