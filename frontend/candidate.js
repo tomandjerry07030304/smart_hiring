@@ -420,11 +420,196 @@ async function loadCandidateProfile() {
 }
 
 function editProfile() {
-    alert('Profile editing interface coming soon!');
+    // TODO: Implement profile editing
+    showNotification('Profile editing coming soon!', 'info');
 }
 
 function uploadResume() {
-    alert('Resume upload interface coming soon!');
+    // Create modern upload modal
+    const modal = document.createElement('div');
+    modal.className = 'modal show';
+    modal.innerHTML = `
+        <div class="modal-content upload-modal">
+            <div class="modal-header">
+                <h3 class="modal-title">📤 Upload Resume</h3>
+                <button class="modal-close" onclick="this.closest('.modal').remove()">×</button>
+            </div>
+            <div class="modal-body">
+                <div class="upload-zone" id="uploadZone" ondrop="handleDrop(event)" ondragover="handleDragOver(event)" ondragleave="handleDragLeave(event)">
+                    <div class="upload-icon">📄</div>
+                    <h4>Drag & Drop your resume here</h4>
+                    <p>or click to browse</p>
+                    <input type="file" id="resumeFile" accept=".pdf,.doc,.docx" style="display: none" onchange="handleFileSelect(event)">
+                    <button class="btn btn-primary" onclick="document.getElementById('resumeFile').click()">
+                        Choose File
+                    </button>
+                    <p class="file-info">Supported formats: PDF, DOC, DOCX (Max 5MB)</p>
+                </div>
+                <div class="file-preview" id="filePreview" style="display: none;">
+                    <div class="preview-header">
+                        <div class="file-icon">📄</div>
+                        <div class="file-details">
+                            <div class="file-name" id="fileName"></div>
+                            <div class="file-size" id="fileSize"></div>
+                        </div>
+                        <button class="btn-remove" onclick="clearFile()">🗑️</button>
+                    </div>
+                    <div class="upload-progress" id="uploadProgress" style="display: none;">
+                        <div class="progress-bar">
+                            <div class="progress-fill" id="progressFill"></div>
+                        </div>
+                        <div class="progress-text" id="progressText">0%</div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="this.closest('.modal').remove()">Cancel</button>
+                <button class="btn btn-success" id="uploadBtn" onclick="submitResume()" disabled>
+                    <span>Upload Resume</span>
+                </button>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(modal);
+    
+    // Make upload zone clickable
+    document.getElementById('uploadZone').onclick = (e) => {
+        if (e.target.id === 'uploadZone' || e.target.closest('.upload-icon') || e.target.tagName === 'H4' || e.target.tagName === 'P') {
+            document.getElementById('resumeFile').click();
+        }
+    };
+}
+
+let selectedFile = null;
+
+function handleDragOver(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    e.currentTarget.classList.add('drag-over');
+}
+
+function handleDragLeave(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    e.currentTarget.classList.remove('drag-over');
+}
+
+function handleDrop(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    e.currentTarget.classList.remove('drag-over');
+    
+    const files = e.dataTransfer.files;
+    if (files.length > 0) {
+        validateAndPreviewFile(files[0]);
+    }
+}
+
+function handleFileSelect(e) {
+    const files = e.target.files;
+    if (files.length > 0) {
+        validateAndPreviewFile(files[0]);
+    }
+}
+
+function validateAndPreviewFile(file) {
+    // Validate file type
+    const allowedTypes = ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'];
+    if (!allowedTypes.includes(file.type)) {
+        showNotification('Please upload a PDF, DOC, or DOCX file', 'error');
+        return;
+    }
+    
+    // Validate file size (5MB max)
+    const maxSize = 5 * 1024 * 1024; // 5MB in bytes
+    if (file.size > maxSize) {
+        showNotification('File size must be less than 5MB', 'error');
+        return;
+    }
+    
+    // Store file and show preview
+    selectedFile = file;
+    document.getElementById('uploadZone').style.display = 'none';
+    document.getElementById('filePreview').style.display = 'block';
+    document.getElementById('fileName').textContent = file.name;
+    document.getElementById('fileSize').textContent = formatFileSize(file.size);
+    document.getElementById('uploadBtn').disabled = false;
+}
+
+function formatFileSize(bytes) {
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+    return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+}
+
+function clearFile() {
+    selectedFile = null;
+    document.getElementById('uploadZone').style.display = 'block';
+    document.getElementById('filePreview').style.display = 'none';
+    document.getElementById('resumeFile').value = '';
+    document.getElementById('uploadBtn').disabled = true;
+}
+
+async function submitResume() {
+    if (!selectedFile) {
+        showNotification('Please select a file first', 'error');
+        return;
+    }
+    
+    const uploadBtn = document.getElementById('uploadBtn');
+    uploadBtn.disabled = true;
+    uploadBtn.innerHTML = '<span class="spinner show"></span> Uploading...';
+    
+    // Show progress bar
+    document.getElementById('uploadProgress').style.display = 'block';
+    
+    try {
+        const formData = new FormData();
+        formData.append('resume', selectedFile);
+        
+        // Simulate upload progress
+        let progress = 0;
+        const progressInterval = setInterval(() => {
+            progress += 10;
+            if (progress <= 90) {
+                document.getElementById('progressFill').style.width = progress + '%';
+                document.getElementById('progressText').textContent = progress + '%';
+            }
+        }, 100);
+        
+        const response = await fetch(`${API_URL}/candidates/upload-resume`, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${authToken}`
+            },
+            body: formData
+        });
+        
+        clearInterval(progressInterval);
+        document.getElementById('progressFill').style.width = '100%';
+        document.getElementById('progressText').textContent = '100%';
+        
+        if (response.ok) {
+            const data = await response.json();
+            showNotification(`✓ Resume uploaded successfully! Found ${data.skills_count || 0} skills.`, 'success');
+            
+            // Close modal after short delay
+            setTimeout(() => {
+                document.querySelector('.modal').remove();
+                // Refresh profile to show updated resume
+                loadCandidateProfile();
+            }, 1500);
+        } else {
+            const error = await response.json();
+            throw new Error(error.error || 'Failed to upload resume');
+        }
+    } catch (error) {
+        console.error('Upload error:', error);
+        showNotification('Failed to upload resume: ' + error.message, 'error');
+        uploadBtn.disabled = false;
+        uploadBtn.innerHTML = '<span>Upload Resume</span>';
+        document.getElementById('uploadProgress').style.display = 'none';
+    }
 }
 
 function candidateLogout() {
