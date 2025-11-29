@@ -223,19 +223,80 @@ class JobProcessor:
         target = data.get('target')  # 'company', 'candidate', 'job'
         target_id = data.get('target_id')
         
-        # TODO: Implement analytics pre-aggregation
-        # This would calculate and cache metrics like:
-        # - Applications per day
-        # - Average time-to-hire
-        # - Success rates
-        # - Score distributions
+        # Implement analytics pre-aggregation
+        from datetime import datetime, timedelta
+        from collections import defaultdict
         
-        return {
-            'success': True,
-            'type': aggregation_type,
-            'target': target,
-            'target_id': target_id
-        }
+        try:
+            db = self.database
+            applications = db['applications']
+            
+            # Calculate time window based on aggregation type
+            now = datetime.utcnow()
+            if aggregation_type == 'daily':
+                start_date = now - timedelta(days=1)
+            elif aggregation_type == 'weekly':
+                start_date = now - timedelta(days=7)
+            else:  # monthly
+                start_date = now - timedelta(days=30)
+            
+            # Build query based on target
+            query = {'applied_date': {'$gte': start_date}}
+            if target == 'job':
+                query['job_id'] = target_id
+            elif target == 'candidate':
+                query['candidate_id'] = target_id
+            elif target == 'company':
+                # Get all jobs for this company and aggregate
+                jobs = list(db['jobs'].find({'company_id': target_id}))
+                job_ids = [str(job['_id']) for job in jobs]
+                query['job_id'] = {'$in': job_ids}
+            
+            # Fetch applications
+            apps = list(applications.find(query))
+            
+            # Calculate metrics
+            metrics = {
+                'total_applications': len(apps),
+                'applications_per_day': len(apps) / ((now - start_date).days or 1),
+                'avg_score': sum(app.get('overall_score', 0) for app in apps) / len(apps) if apps else 0,
+                'status_distribution': defaultdict(int),
+                'score_distribution': {'0-25': 0, '25-50': 0, '50-75': 0, '75-100': 0}
+            }
+            
+            # Calculate distributions
+            for app in apps:
+                status = app.get('status', 'submitted')
+                metrics['status_distribution'][status] += 1
+                
+                score = app.get('overall_score', 0)
+                if score < 25:
+                    metrics['score_distribution']['0-25'] += 1
+                elif score < 50:
+                    metrics['score_distribution']['25-50'] += 1
+                elif score < 75:
+                    metrics['score_distribution']['50-75'] += 1
+                else:
+                    metrics['score_distribution']['75-100'] += 1
+            
+            # Cache results using queue manager
+            cache_key = f"analytics:{aggregation_type}:{target}:{target_id}"
+            from backend.workers.queue_manager import queue_manager
+            queue_manager.cache_set(cache_key, metrics, ttl=3600)  # Cache for 1 hour
+            
+            return {
+                'success': True,
+                'type': aggregation_type,
+                'target': target,
+                'target_id': target_id,
+                'metrics': metrics
+            }
+        except Exception as e:
+            logger.error(f"Analytics aggregation failed: {e}")
+            return {
+                'success': False,
+                'error': str(e)
+            }
     
     def _process_ml_scoring(self, data: Dict[str, Any]) -> Dict[str, Any]:
         """

@@ -123,6 +123,29 @@ class EmailService:
         
         return self.send_email(to_email, subject, html_content, text_content)
     
+    def send_password_reset_email(self, to_email: str, reset_link: str, user_name: str) -> bool:
+        """Send password reset email with secure link"""
+        subject = "Password Reset Request - Smart Hiring System 🔐"
+        
+        html_content = self._get_password_reset_template(user_name, reset_link)
+        text_content = f"""
+        Hi {user_name},
+        
+        We received a request to reset your password for your Smart Hiring System account.
+        
+        Click the link below to reset your password:
+        {reset_link}
+        
+        This link will expire in 1 hour for security reasons.
+        
+        If you didn't request this password reset, please ignore this email.
+        
+        Best regards,
+        Smart Hiring Team
+        """
+        
+        return self.send_email(to_email, subject, html_content, text_content)
+    
     def send_new_application_alert(self, to_email: str, recruiter_name: str, candidate_name: str, 
                                    job_title: str, match_score: float) -> bool:
         """Send new application alert to recruiter"""
@@ -304,6 +327,29 @@ class EmailService:
                     View Details →
                 </a>
             </p>
+            <p>Best regards,<br><strong>Smart Hiring Team</strong></p>
+        """
+        return self._get_base_template(content)
+    
+    def _get_password_reset_template(self, user_name: str, reset_link: str) -> str:
+        """Password reset email template"""
+        content = f"""
+            <h2>Password Reset Request 🔐</h2>
+            <p>Hi <strong>{user_name}</strong>,</p>
+            <p>We received a request to reset your password for your Smart Hiring System account.</p>
+            <p>Click the button below to create a new password:</p>
+            <p>
+                <a href="{reset_link}" class="button">
+                    Reset Password →
+                </a>
+            </p>
+            <p><strong>Important:</strong></p>
+            <ul>
+                <li>This link will expire in <strong>1 hour</strong> for security reasons</li>
+                <li>If you didn't request this reset, please ignore this email</li>
+                <li>Your password will remain unchanged unless you click the link</li>
+            </ul>
+            <p>For security reasons, if you continue to experience issues, please contact our support team.</p>
             <p>Best regards,<br><strong>Smart Hiring Team</strong></p>
         """
         return self._get_base_template(content)

@@ -7,6 +7,7 @@ import re
 import secrets
 import hashlib
 import os
+import logging
 
 from backend.models.database import get_db
 from backend.models.user import User, Candidate
@@ -14,6 +15,7 @@ from backend.utils.sanitizer import sanitizer
 from backend.utils.rate_limiter import rate_limit
 from backend.utils.email_service import email_service
 
+logger = logging.getLogger(__name__)
 bp = Blueprint('auth', __name__)
 bcrypt = Bcrypt()
 
@@ -273,10 +275,20 @@ def forgot_password():
             }
         )
         
-        # TODO: Send email with reset link
-        # SECURITY: Never expose tokens in production
+        # Send password reset email
         base_url = os.getenv('FRONTEND_URL', 'http://localhost:5000')
         reset_link = f"{base_url}/reset-password.html?token={reset_token}&email={email}"
+        
+        # Send email with reset link
+        from backend.utils.email_service import email_service
+        try:
+            email_service.send_password_reset_email(
+                to_email=email,
+                reset_link=reset_link,
+                user_name=user.get('name', email)
+            )
+        except Exception as email_error:
+            logger.warning(f"Failed to send password reset email: {email_error}")
         
         # In development, log the token (remove in production)
         if current_app.config.get('DEBUG', False):

@@ -49,9 +49,6 @@ def get_analytics():
         else:
             # For recruiters/admins
             recruiter_id = user_id
-        else:
-            # For recruiters/admins
-            recruiter_id = user_id
             jobs = list(jobs_collection.find({'recruiter_id': recruiter_id}))
             job_ids = [str(job['_id']) for job in jobs]
             

@@ -350,7 +350,41 @@ def _delete_user_data(user_id: str) -> dict:
     summary = {}
     
     # Delete uploaded files
-    # TODO: Implement file deletion
+    import os
+    from backend.security.file_security import file_security_manager
+    
+    try:
+        # Get candidate profile to find resume files
+        candidate = database.candidates.find_one({'user_id': user_id})
+        if candidate and candidate.get('resume_file'):
+            # Delete physical resume file
+            resume_path = os.path.join(
+                os.getenv('UPLOAD_FOLDER', 'uploads'),
+                candidate['resume_file']
+            )
+            if os.path.exists(resume_path):
+                file_security_manager.delete_file_securely(resume_path)
+                summary['files_deleted'] = 1
+        
+        # Delete any other files associated with applications
+        applications = database.applications.find({'candidate_id': user_id})
+        files_deleted = 0
+        for app in applications:
+            if app.get('resume_file'):
+                file_path = os.path.join(
+                    os.getenv('UPLOAD_FOLDER', 'uploads'),
+                    app['resume_file']
+                )
+                if os.path.exists(file_path):
+                    file_security_manager.delete_file_securely(file_path)
+                    files_deleted += 1
+        
+        if files_deleted > 0:
+            summary['application_files_deleted'] = files_deleted
+            
+    except Exception as e:
+        logger.warning(f"Error deleting files for user {user_id}: {e}")
+        summary['file_deletion_errors'] = str(e)
     
     # Delete user record
     result = database.users.delete_one({'_id': user_id})
