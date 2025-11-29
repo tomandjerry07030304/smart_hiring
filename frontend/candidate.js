@@ -189,13 +189,27 @@ async function applyToJob(jobId) {
             body: JSON.stringify({})
         });
         
+        // Check content type before parsing as JSON
+        const contentType = response.headers.get('content-type');
+        if (!contentType || !contentType.includes('application/json')) {
+            const text = await response.text();
+            console.error('Server response:', text.substring(0, 200));
+            throw new Error('Server returned invalid response. Please contact support.');
+        }
+        
+        const data = await response.json();
+        
         if (response.ok) {
-            alert('✓ Application submitted successfully! You can track it in "My Applications".');
+            alert('✓ Application submitted successfully! Track it in "My Applications".');
+            // Refresh the applications list
+            setTimeout(() => {
+                loadCandidateApplications();
+            }, 1000);
         } else {
-            const error = await response.json();
-            throw new Error(error.message || error.error || 'Failed to apply');
+            throw new Error(data.message || data.error || 'Failed to apply');
         }
     } catch (error) {
+        console.error('Application error:', error);
         alert('Failed to submit application: ' + error.message);
     }
 }
@@ -307,7 +321,21 @@ async function loadCandidateProfile() {
             headers: { 'Authorization': `Bearer ${authToken}` }
         });
         
+        if (!response.ok) {
+            throw new Error('Profile not found');
+        }
+        
         const profile = await response.json();
+        
+        // Safely get profile data with proper defaults
+        const firstName = profile.first_name || currentUser.full_name?.split(' ')[0] || 'User';
+        const lastName = profile.last_name || currentUser.full_name?.split(' ').slice(1).join(' ') || '';
+        const email = profile.email || currentUser.email || 'Not provided';
+        const phone = profile.phone || 'Not provided';
+        const skills = profile.skills || [];
+        const experience = profile.experience_years || profile.experience || 0;
+        const education = profile.education || 'Not provided';
+        const resumeUploaded = profile.resume_uploaded || profile.resume_file || false;
         
         container.innerHTML = `
             <div class="content-header">
@@ -315,36 +343,60 @@ async function loadCandidateProfile() {
                 <button class="btn btn-primary" onclick="editProfile()">Edit Profile</button>
             </div>
             <div class="card">
-                <h3>${profile.first_name} ${profile.last_name}</h3>
-                <p>📧 ${profile.email}</p>
-                <p>📞 ${profile.phone || 'Not provided'}</p>
+                <h3>${firstName} ${lastName}</h3>
+                <p>📧 ${email}</p>
+                <p>📞 ${phone}</p>
                 
                 <h4>Skills</h4>
                 <div class="job-tags">
-                    ${(profile.skills || ['No skills added']).map(s => `<span class="tag">${s}</span>`).join('')}
+                    ${skills.length > 0 ? 
+                        skills.map(s => `<span class="tag">${s}</span>`).join('') :
+                        '<p class="text-muted">No skills added</p>'
+                    }
                 </div>
                 
                 <h4>Experience</h4>
-                <p>${profile.experience_years || 0} years</p>
+                <p>${experience} years</p>
                 
                 <h4>Education</h4>
-                <p>${profile.education || 'Not provided'}</p>
+                <p>${education}</p>
                 
                 <h4>Resume</h4>
-                ${profile.resume_url ? 
-                    `<a href="${profile.resume_url}" target="_blank" class="btn btn-secondary">📄 View Resume</a>` :
-                    `<button class="btn btn-primary" onclick="uploadResume()">📤 Upload Resume</button>`
+                ${resumeUploaded ? 
+                    `<div class="alert alert-success">✓ Resume uploaded successfully</div>
+                     <button class="btn btn-secondary" onclick="uploadResume()">📤 Upload New Resume</button>` :
+                    `<div class="alert alert-warning">⚠️ No resume uploaded. Upload your resume to apply to jobs.</div>
+                     <button class="btn btn-primary" onclick="uploadResume()">📤 Upload Resume</button>`
                 }
             </div>
         `;
     } catch (error) {
+        console.error('Profile load error:', error);
+        // Create default profile view with current user data
+        const firstName = currentUser.full_name?.split(' ')[0] || 'User';
+        const lastName = currentUser.full_name?.split(' ').slice(1).join(' ') || '';
+        
         container.innerHTML = `
             <div class="content-header">
                 <h2>👤 My Profile</h2>
             </div>
             <div class="card">
-                <p>Complete your profile to improve your job matches!</p>
-                <button class="btn btn-primary" onclick="editProfile()">Create Profile</button>
+                <h3>${firstName} ${lastName}</h3>
+                <p>📧 ${currentUser.email || 'undefined'}</p>
+                <p>📞 Not provided</p>
+                
+                <h4>Skills</h4>
+                <p class="text-muted">No skills added</p>
+                
+                <h4>Experience</h4>
+                <p>0 years</p>
+                
+                <h4>Education</h4>
+                <p>Not provided</p>
+                
+                <h4>Resume</h4>
+                <div class="alert alert-warning">⚠️ Complete your profile to improve your job matches!</div>
+                <button class="btn btn-primary" onclick="uploadResume()">📤 Upload Resume</button>
             </div>
         `;
     }

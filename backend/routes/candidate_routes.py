@@ -227,16 +227,42 @@ def get_candidate_profile():
         
         db = get_db()
         candidates_collection = db['candidates']
+        users_collection = db['users']
         
+        # Get or create candidate profile
         candidate = candidates_collection.find_one({'user_id': current_user['user_id']})
+        
         if not candidate:
-            return jsonify({'error': 'Profile not found'}), 404
+            # Create default candidate profile
+            user = users_collection.find_one({'_id': ObjectId(current_user['user_id'])})
+            
+            default_profile = {
+                'user_id': current_user['user_id'],
+                'email': user.get('email', ''),
+                'first_name': user.get('full_name', '').split()[0] if user.get('full_name') else '',
+                'last_name': ' '.join(user.get('full_name', '').split()[1:]) if user.get('full_name') else '',
+                'phone': '',
+                'skills': [],
+                'experience_years': 0,
+                'education': '',
+                'resume_file': None,
+                'resume_uploaded': False,
+                'applications': [],
+                'created_at': datetime.utcnow(),
+                'updated_at': datetime.utcnow()
+            }
+            
+            result = candidates_collection.insert_one(default_profile)
+            default_profile['_id'] = str(result.inserted_id)
+            
+            return jsonify(default_profile), 200
         
         candidate['_id'] = str(candidate['_id'])
         # Don't send full resume text, just metadata
         if 'resume_text' in candidate:
             candidate['resume_uploaded'] = True
             del candidate['resume_text']
+        if 'anonymized_resume' in candidate:
             del candidate['anonymized_resume']
         
         return jsonify(candidate), 200
