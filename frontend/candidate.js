@@ -167,20 +167,40 @@ async function viewJobDetails(jobId) {
                     <button class="modal-close" onclick="this.closest('.modal').remove()">×</button>
                 </div>
                 <div class="modal-body">
-                    <p><strong>📍 Location:</strong> ${job.location}</p>
-                    <p><strong>💼 Job Type:</strong> ${job.job_type}</p>
-                    <p><strong>🏢 Department:</strong> ${job.department}</p>
-                    <h4>Description</h4>
-                    <p style="white-space: pre-line;">${job.description}</p>
-                    <h4>Requirements</h4>
-                    <ul style="line-height: 1.8;">
-                        ${Array.isArray(job.requirements) 
-                            ? job.requirements.map(r => `<li>${r}</li>`).join('') 
-                            : (job.requirements || '').split(/\n|\.(?=\s[A-Z])/).filter(r => r.trim()).map(r => `<li>${r.trim()}</li>`).join('')}
-                    </ul>
-                    <h4>Required Skills</h4>
-                    <div class="job-tags">
-                        ${(job.required_skills || []).map(s => `<span class="tag">${s}</span>`).join('')}
+                    <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 24px; padding: 16px; background: #f8fafc; border-radius: 8px;">
+                        <div>
+                            <div style="color: #64748b; font-size: 14px; margin-bottom: 4px;">📍 Location</div>
+                            <div style="font-weight: 600;">${job.location}</div>
+                        </div>
+                        <div>
+                            <div style="color: #64748b; font-size: 14px; margin-bottom: 4px;">💼 Job Type</div>
+                            <div style="font-weight: 600;">${job.job_type}</div>
+                        </div>
+                        <div>
+                            <div style="color: #64748b; font-size: 14px; margin-bottom: 4px;">🏢 Department</div>
+                            <div style="font-weight: 600;">${job.department || 'Not specified'}</div>
+                        </div>
+                    </div>
+                    
+                    <div style="margin-bottom: 24px;">
+                        <h4 style="color: #1e293b; margin-bottom: 12px; font-size: 16px;">📋 Description</h4>
+                        <p style="color: #475569; line-height: 1.8; white-space: pre-line;">${(job.description || '').replace(/Requirements?:\s*/i, '').trim()}</p>
+                    </div>
+                    
+                    <div style="margin-bottom: 24px;">
+                        <h4 style="color: #1e293b; margin-bottom: 12px; font-size: 16px;">✅ Requirements</h4>
+                        <ul style="line-height: 2; color: #475569; padding-left: 20px;">
+                            ${Array.isArray(job.requirements) 
+                                ? job.requirements.map(r => `<li style="margin-bottom: 8px;">${r}</li>`).join('') 
+                                : (job.requirements || '').split(/\n|\.(?=\s[A-Z])/).filter(r => r.trim() && !r.match(/^Requirements?:?\s*$/i)).map(r => `<li style="margin-bottom: 8px;">${r.trim()}</li>`).join('')}
+                        </ul>
+                    </div>
+                    
+                    <div>
+                        <h4 style="color: #1e293b; margin-bottom: 12px; font-size: 16px;">🎯 Required Skills</h4>
+                        <div class="job-tags">
+                            ${(job.required_skills || []).map(s => `<span class="tag">${s}</span>`).join('')}
+                        </div>
                     </div>
                 </div>
                 <div class="modal-footer">
