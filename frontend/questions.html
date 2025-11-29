@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Question Bank - Smart Hiring</title>
+    <link rel="stylesheet" href="styles.css">
+    <style>
+        .questions-container { max-width: 1200px; margin: 40px auto; padding: 32px; }
+        .questions-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 32px; }
+        .questions-header h1 { margin: 0; font-size: 28px; }
+        .btn-create { padding: 12px 24px; background: linear-gradient(135deg, #4F46E5 0%, #7c3aed 100%); color: white; border: none; border-radius: 12px; cursor: pointer; font-weight: 600; }
+        .filters { display: flex; gap: 12px; margin-bottom: 24px; flex-wrap: wrap; }
+        .filter-select { padding: 10px 16px; border: 2px solid #e2e8f0; border-radius: 8px; font-size: 14px; }
+        .questions-grid { display: grid; gap: 20px; }
+        .question-card { background: white; padding: 24px; border-radius: 16px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); transition: transform 0.3s; }
+        .question-card:hover { transform: translateY(-4px); box-shadow: 0 8px 16px rgba(0,0,0,0.15); }
+        .question-header { display: flex; justify-content: space-between; align-items: start; margin-bottom: 16px; }
+        .question-type { display: inline-block; padding: 4px 12px; background: #f3e8ff; color: #581c87; border-radius: 6px; font-size: 12px; font-weight: 600; }
+        .question-text { margin: 16px 0; font-size: 16px; color: #2d3748; }
+        .question-meta { display: flex; gap: 16px; margin-top: 16px; font-size: 14px; color: #718096; }
+        .question-actions { display: flex; gap: 8px; }
+        .btn-icon { padding: 8px 12px; background: #edf2f7; border: none; border-radius: 8px; cursor: pointer; transition: all 0.3s; }
+        .btn-icon:hover { background: #e2e8f0; }
+        .btn-delete { background: #fee2e2; color: #991b1b; }
+        .btn-delete:hover { background: #fecaca; }
+        
+        .modal { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 1000; align-items: center; justify-content: center; }
+        .modal.active { display: flex; }
+        .modal-content { background: white; padding: 32px; border-radius: 16px; max-width: 600px; width: 90%; max-height: 90vh; overflow-y: auto; }
+        .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
+        .modal-header h2 { margin: 0; }
+        .form-group { margin-bottom: 20px; }
+        .form-group label { display: block; margin-bottom: 8px; font-weight: 600; color: #2d3748; }
+        .form-input, .form-textarea, .form-select { width: 100%; padding: 12px; border: 2px solid #e2e8f0; border-radius: 8px; font-size: 14px; }
+        .form-textarea { min-height: 100px; resize: vertical; }
+        .options-list { margin-top: 12px; }
+        .option-input { display: flex; gap: 8px; margin-bottom: 8px; }
+        .option-input input { flex: 1; }
+        .btn-add-option { padding: 8px 16px; background: #edf2f7; border: none; border-radius: 8px; cursor: pointer; font-size: 14px; }
+        .form-actions { display: flex; gap: 12px; margin-top: 24px; }
+        .btn-primary { flex: 1; padding: 14px; background: linear-gradient(135deg, #4F46E5 0%, #7c3aed 100%); color: white; border: none; border-radius: 12px; font-weight: 600; cursor: pointer; }
+        .btn-secondary { flex: 1; padding: 14px; background: #edf2f7; color: #4a5568; border: none; border-radius: 12px; font-weight: 600; cursor: pointer; }
+    </style>
+</head>
+<body>
+    <div class="navbar">
+        <div class="navbar-brand">🎯 Smart Hiring</div>
+        <div class="navbar-menu">
+            <a href="company.html" class="nav-link">Dashboard</a>
+            <a href="questions.html" class="nav-link active">Question Bank</a>
+            <a href="quizzes.html" class="nav-link">Quizzes</a>
+            <button onclick="logout()" class="btn-logout">Logout</button>
+        </div>
+    </div>
+
+    <div class="questions-container">
+        <div class="questions-header">
+            <h1>📝 Question Bank</h1>
+            <button class="btn-create" onclick="showCreateModal()">+ Create Question</button>
+        </div>
+
+        <div class="filters">
+            <select class="filter-select" id="filterCategory" onchange="loadQuestions()">
+                <option value="">All Categories</option>
+                <option value="technical">Technical</option>
+                <option value="behavioral">Behavioral</option>
+                <option value="general">General</option>
+            </select>
+            <select class="filter-select" id="filterDifficulty" onchange="loadQuestions()">
+                <option value="">All Difficulty</option>
+                <option value="easy">Easy</option>
+                <option value="medium">Medium</option>
+                <option value="hard">Hard</option>
+            </select>
+        </div>
+
+        <div class="questions-grid" id="questionsGrid"></div>
+    </div>
+
+    <div class="modal" id="createModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Create Question</h2>
+                <button onclick="closeModal()" style="background:none;border:none;font-size:24px;cursor:pointer;">&times;</button>
+            </div>
+            <form onsubmit="createQuestion(event)">
+                <div class="form-group">
+                    <label>Question Text *</label>
+                    <textarea class="form-textarea" id="questionText" required></textarea>
+                </div>
+                <div class="form-group">
+                    <label>Question Type *</label>
+                    <select class="form-select" id="questionType" onchange="updateOptionsVisibility()">
+                        <option value="multiple_choice">Multiple Choice</option>
+                        <option value="true_false">True/False</option>
+                        <option value="short_answer">Short Answer</option>
+                    </select>
+                </div>
+                <div class="form-group" id="optionsGroup">
+                    <label>Options</label>
+                    <div class="options-list" id="optionsList"></div>
+                    <button type="button" class="btn-add-option" onclick="addOption()">+ Add Option</button>
+                </div>
+                <div class="form-group">
+                    <label>Correct Answer *</label>
+                    <input class="form-input" id="correctAnswer" required>
+                </div>
+                <div class="form-group">
+                    <label>Points</label>
+                    <input type="number" class="form-input" id="points" value="1" min="1">
+                </div>
+                <div class="form-group">
+                    <label>Difficulty</label>
+                    <select class="form-select" id="difficulty">
+                        <option value="easy">Easy</option>
+                        <option value="medium" selected>Medium</option>
+                        <option value="hard">Hard</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Category</label>
+                    <select class="form-select" id="category">
+                        <option value="technical">Technical</option>
+                        <option value="behavioral">Behavioral</option>
+                        <option value="general">General</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Explanation (optional)</label>
+                    <textarea class="form-textarea" id="explanation" style="min-height:60px;"></textarea>
+                </div>
+                <div class="form-actions">
+                    <button type="button" class="btn-secondary" onclick="closeModal()">Cancel</button>
+                    <button type="submit" class="btn-primary">Create Question</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        const API_URL = 'https://my-project-smart-hiring.onrender.com/api';
+        const authToken = localStorage.getItem('authToken');
+        
+        if (!authToken) window.location.href = 'login.html';
+
+        let optionCount = 0;
+
+        function addOption() {
+            optionCount++;
+            const optionsList = document.getElementById('optionsList');
+            const div = document.createElement('div');
+            div.className = 'option-input';
+            div.innerHTML = `
+                <input type="text" class="form-input" id="option${optionCount}" placeholder="Option ${optionCount}">
+                <button type="button" class="btn-icon btn-delete" onclick="this.parentElement.remove()">×</button>
+            `;
+            optionsList.appendChild(div);
+        }
+
+        function updateOptionsVisibility() {
+            const type = document.getElementById('questionType').value;
+            const optionsGroup = document.getElementById('optionsGroup');
+            optionsGroup.style.display = type === 'multiple_choice' ? 'block' : 'none';
+        }
+
+        function showCreateModal() {
+            document.getElementById('createModal').classList.add('active');
+            document.getElementById('optionsList').innerHTML = '';
+            optionCount = 0;
+            for (let i = 0; i < 4; i++) addOption();
+            updateOptionsVisibility();
+        }
+
+        function closeModal() {
+            document.getElementById('createModal').classList.remove('active');
+        }
+
+        async function createQuestion(e) {
+            e.preventDefault();
+            
+            const options = [];
+            document.querySelectorAll('.option-input input').forEach(input => {
+                if (input.value.trim()) options.push(input.value.trim());
+            });
+
+            const data = {
+                question_text: document.getElementById('questionText').value,
+                question_type: document.getElementById('questionType').value,
+                options: options,
+                correct_answer: document.getElementById('correctAnswer').value,
+                points: parseInt(document.getElementById('points').value),
+                difficulty: document.getElementById('difficulty').value,
+                category: document.getElementById('category').value,
+                explanation: document.getElementById('explanation').value
+            };
+
+            try {
+                const response = await fetch(`${API_URL}/assessments/questions`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${authToken}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(data)
+                });
+
+                if (response.ok) {
+                    alert('Question created successfully!');
+                    closeModal();
+                    loadQuestions();
+                } else {
+                    const error = await response.json();
+                    alert(error.error || 'Failed to create question');
+                }
+            } catch (error) {
+                alert('Error creating question');
+            }
+        }
+
+        async function loadQuestions() {
+            const category = document.getElementById('filterCategory').value;
+            const difficulty = document.getElementById('filterDifficulty').value;
+            
+            let url = `${API_URL}/assessments/questions?`;
+            if (category) url += `category=${category}&`;
+            if (difficulty) url += `difficulty=${difficulty}&`;
+
+            try {
+                const response = await fetch(url, {
+                    headers: { 'Authorization': `Bearer ${authToken}` }
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    displayQuestions(data.questions);
+                }
+            } catch (error) {
+                console.error('Error loading questions:', error);
+            }
+        }
+
+        function displayQuestions(questions) {
+            const grid = document.getElementById('questionsGrid');
+            
+            if (questions.length === 0) {
+                grid.innerHTML = '<p style="text-align:center;color:#718096;">No questions found. Create your first question!</p>';
+                return;
+            }
+
+            grid.innerHTML = questions.map(q => `
+                <div class="question-card">
+                    <div class="question-header">
+                        <span class="question-type">${q.question_type.replace('_', ' ').toUpperCase()}</span>
+                        <div class="question-actions">
+                            <button class="btn-icon btn-delete" onclick="deleteQuestion('${q._id}')">🗑️ Delete</button>
+                        </div>
+                    </div>
+                    <div class="question-text">${q.question_text}</div>
+                    ${q.options && q.options.length > 0 ? `
+                        <div style="margin-top:12px;">
+                            ${q.options.map((opt, i) => `<div style="font-size:14px;color:#4a5568;">• ${opt}</div>`).join('')}
+                        </div>
+                    ` : ''}
+                    <div class="question-meta">
+                        <span>📊 ${q.difficulty}</span>
+                        <span>🏷️ ${q.category}</span>
+                        <span>⭐ ${q.points} pts</span>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        async function deleteQuestion(id) {
+            if (!confirm('Delete this question?')) return;
+
+            try {
+                const response = await fetch(`${API_URL}/assessments/questions/${id}`, {
+                    method: 'DELETE',
+                    headers: { 'Authorization': `Bearer ${authToken}` }
+                });
+
+                if (response.ok) {
+                    alert('Question deleted');
+                    loadQuestions();
+                }
+            } catch (error) {
+                alert('Error deleting question');
+            }
+        }
+
+        function logout() {
+            localStorage.removeItem('authToken');
+            localStorage.removeItem('currentUser');
+            window.location.href = 'login.html';
+        }
+
+        loadQuestions();
+    </script>
+</body>
+</html>

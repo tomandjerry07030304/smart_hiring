@@ -1,200 +1,379 @@
+"""
+Assessment and Quiz Management Routes  
+Handles question bank, quiz creation, quiz taking, and results
+"""
+
 from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from datetime import datetime
 from bson import ObjectId
+import random
 
 from backend.models.database import get_db
-from backend.models.assessment import Assessment, AssessmentResponse, Interview
+from backend.models.assessment import Question, Quiz, QuizAttempt
 
 bp = Blueprint('assessments', __name__)
 
-@bp.route('/create', methods=['POST'])
+def get_user_info(current_user):
+    """Helper to extract user_id and role from JWT identity"""
+    if isinstance(current_user, str):
+        user_id = current_user
+        db = get_db()
+        user = db['users'].find_one({'_id': ObjectId(user_id)})
+        return user_id, user.get('role') if user else None
+    return current_user.get('user_id'), current_user.get('role')
+
+# ==================== QUESTION BANK MANAGEMENT ====================
+
+@bp.route('/questions', methods=['POST'])
 @jwt_required()
-def create_assessment():
-    """Create assessment for a job (recruiter only)"""
+def create_question():
+    """Create a new question (recruiter/admin only)"""
     try:
-        current_user = get_jwt_identity()
-        
-        if current_user['role'] not in ['recruiter', 'admin']:
-            return jsonify({'error': 'Only recruiters can create assessments'}), 403
+        user_id, role = get_user_info(get_jwt_identity())
+        if role not in ['company', 'admin']:
+            return jsonify({'error': 'Unauthorized'}), 403
         
         data = request.get_json()
-        
-        # Validate required fields
-        required_fields = ['job_id', 'title', 'assessment_type', 'questions']
+        required_fields = ['question_text', 'question_type']
         for field in required_fields:
             if field not in data:
-                return jsonify({'error': f'Missing required field: {field}'}), 400
+                return jsonify({'error': f'Missing field: {field}'}), 400
         
-        # Create assessment
-        assessment = Assessment(
-            job_id=data['job_id'],
-            title=data['title'],
-            assessment_type=data['assessment_type'],
-            duration_minutes=data.get('duration_minutes', 60),
-            questions=data['questions'],
-            passing_score=data.get('passing_score', 60)
+        question = Question(
+            question_text=data['question_text'],
+            question_type=data.get('question_type', 'multiple_choice'),
+            options=data.get('options', []),
+            correct_answer=data.get('correct_answer', ''),
+            points=data.get('points', 1),
+            difficulty=data.get('difficulty', 'medium'),
+            category=data.get('category', 'general'),
+            tags=data.get('tags', []),
+            explanation=data.get('explanation', ''),
+            created_by=user_id
         )
         
-        db = get_db()
-        assessments_collection = db['assessments']
-        result = assessments_collection.insert_one(assessment.to_dict())
-        
-        return jsonify({
-            'message': 'Assessment created successfully',
-            'assessment_id': str(result.inserted_id)
-        }), 201
-        
+        result = get_db()['questions'].insert_one(question.to_dict())
+        return jsonify({'message': 'Question created', 'question_id': str(result.inserted_id)}), 201
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-@bp.route('/job/<job_id>', methods=['GET'])
-def get_job_assessments(job_id):
-    """Get assessments for a job"""
+@bp.route('/questions', methods=['GET'])
+@jwt_required()
+def get_questions():
+    """Get all questions with filtering"""
     try:
-        db = get_db()
-        assessments_collection = db['assessments']
+        user_id, role = get_user_info(get_jwt_identity())
+        if role not in ['company', 'admin']:
+            return jsonify({'error': 'Unauthorized'}), 403
         
-        assessments = list(assessments_collection.find({
-            'job_id': job_id,
-            'is_active': True
+        query = {'is_active': True}
+        if role != 'admin':
+            query['created_by'] = user_id
+        
+        # Apply filters
+        for param in ['category', 'difficulty']:
+            if request.args.get(param):
+                query[param] = request.args.get(param)
+        
+        questions = list(get_db()['questions'].find(query))
+        for q in questions:
+            q['_id'] = str(q['_id'])
+            q['created_at'] = q['created_at'].isoformat()
+        
+        return jsonify({'questions': questions, 'total': len(questions)}), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@bp.route('/questions/<question_id>', methods=['DELETE'])
+@jwt_required()
+def delete_question(question_id):
+    """Soft delete a question"""
+    try:
+        user_id, role = get_user_info(get_jwt_identity())
+        if role not in ['company', 'admin']:
+            return jsonify({'error': 'Unauthorized'}), 403
+        
+        db = get_db()
+        question = db['questions'].find_one({'_id': ObjectId(question_id)})
+        if not question:
+            return jsonify({'error': 'Question not found'}), 404
+        
+        if role != 'admin' and question['created_by'] != user_id:
+            return jsonify({'error': 'Unauthorized'}), 403
+        
+        db['questions'].update_one(
+            {'_id': ObjectId(question_id)},
+            {'$set': {'is_active': False}}
+        )
+        return jsonify({'message': 'Question deleted'}), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+# ==================== QUIZ MANAGEMENT ====================
+
+@bp.route('/quizzes', methods=['POST'])
+@jwt_required()
+def create_quiz():
+    """Create a new quiz"""
+    try:
+        user_id, role = get_user_info(get_jwt_identity())
+        if role not in ['company', 'admin']:
+            return jsonify({'error': 'Unauthorized'}), 403
+        
+        data = request.get_json()
+        if 'title' not in data or 'questions' not in data:
+            return jsonify({'error': 'Missing title or questions'}), 400
+        
+        # Calculate total points
+        db = get_db()
+        question_ids = [ObjectId(qid) for qid in data['questions']]
+        questions = list(db['questions'].find({'_id': {'$in': question_ids}}))
+        total_points = sum(q.get('points', 1) for q in questions)
+        
+        quiz = Quiz(
+            title=data['title'],
+            description=data.get('description', ''),
+            created_by=user_id,
+            questions=data['questions'],
+            duration=data.get('duration', 3600),
+            passing_score=data.get('passing_score', 70),
+            total_points=total_points,
+            job_id=data.get('job_id'),
+            max_attempts=data.get('max_attempts', 1)
+        )
+        
+        result = db['quizzes'].insert_one(quiz.to_dict())
+        return jsonify({'message': 'Quiz created', 'quiz_id': str(result.inserted_id)}), 201
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@bp.route('/quizzes', methods=['GET'])
+@jwt_required()
+def get_quizzes():
+    """Get quizzes"""
+    try:
+        user_id, role = get_user_info(get_jwt_identity())
+        
+        db = get_db()
+        query = {'is_active': True}
+        
+        if role == 'company':
+            query['created_by'] = user_id
+        elif role == 'candidate':
+            # Candidates see quizzes for jobs they applied to
+            applications = list(db['applications'].find({'candidate_id': user_id}))
+            job_ids = [app['job_id'] for app in applications]
+            query['job_id'] = {'$in': job_ids}
+        
+        quizzes = list(db['quizzes'].find(query))
+        for quiz in quizzes:
+            quiz['_id'] = str(quiz['_id'])
+            quiz['created_at'] = quiz['created_at'].isoformat()
+        
+        return jsonify({'quizzes': quizzes, 'total': len(quizzes)}), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+# ==================== QUIZ TAKING ====================
+
+@bp.route('/quizzes/<quiz_id>/start', methods=['POST'])
+@jwt_required()
+def start_quiz(quiz_id):
+    """Start a quiz attempt"""
+    try:
+        user_id, role = get_user_info(get_jwt_identity())
+        if role != 'candidate':
+            return jsonify({'error': 'Only candidates can take quizzes'}), 403
+        
+        db = get_db()
+        quiz = db['quizzes'].find_one({'_id': ObjectId(quiz_id)})
+        if not quiz:
+            return jsonify({'error': 'Quiz not found'}), 404
+        
+        # Check max attempts
+        attempts_count = db['quiz_attempts'].count_documents({
+            'quiz_id': quiz_id,
+            'candidate_id': user_id,
+            'status': 'completed'
+        })
+        
+        if attempts_count >= quiz.get('max_attempts', 1):
+            return jsonify({'error': 'Maximum attempts reached'}), 400
+        
+        # Check for in-progress attempt
+        existing = db['quiz_attempts'].find_one({
+            'quiz_id': quiz_id,
+            'candidate_id': user_id,
+            'status': 'in_progress'
+        })
+        
+        if existing:
+            existing['_id'] = str(existing['_id'])
+            return jsonify({'message': 'Existing attempt found', 'attempt': existing}), 200
+        
+        # Create new attempt
+        attempt = QuizAttempt(quiz_id=quiz_id, candidate_id=user_id)
+        result = db['quiz_attempts'].insert_one(attempt.to_dict())
+        
+        # Get questions (hide correct answers)
+        question_ids = [ObjectId(qid) for qid in quiz['questions']]
+        questions = list(db['questions'].find({'_id': {'$in': question_ids}}))
+        
+        if quiz.get('randomize_questions'):
+            random.shuffle(questions)
+        
+        safe_questions = []
+        for q in questions:
+            safe_q = {
+                '_id': str(q['_id']),
+                'question_text': q['question_text'],
+                'question_type': q['question_type'],
+                'options': q['options'],
+                'points': q['points']
+            }
+            if quiz.get('randomize_options') and q['question_type'] == 'multiple_choice':
+                random.shuffle(safe_q['options'])
+            safe_questions.append(safe_q)
+        
+        return jsonify({
+            'message': 'Quiz started',
+            'attempt_id': str(result.inserted_id),
+            'quiz': {
+                'title': quiz['title'],
+                'duration': quiz['duration'],
+                'total_points': quiz['total_points']
+            },
+            'questions': safe_questions
+        }), 201
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@bp.route('/attempts/<attempt_id>/submit', methods=['POST'])
+@jwt_required()
+def submit_quiz(attempt_id):
+    """Submit quiz answers"""
+    try:
+        user_id, role = get_user_info(get_jwt_identity())
+        
+        data = request.get_json()
+        answers = data.get('answers', {})
+        time_spent = data.get('time_spent', {})
+        
+        db = get_db()
+        attempt = db['quiz_attempts'].find_one({'_id': ObjectId(attempt_id)})
+        if not attempt or attempt['candidate_id'] != user_id:
+            return jsonify({'error': 'Unauthorized'}), 403
+        
+        quiz = db['quiz_attempts'].find_one({'_id': ObjectId(attempt['quiz_id'])})
+        
+        # Get questions and grade
+        question_ids = [ObjectId(qid) for qid in quiz['questions']]
+        questions = {str(q['_id']): q for q in db['questions'].find({'_id': {'$in': question_ids}})}
+        
+        score = 0
+        correct_count = 0
+        feedback = {}
+        
+        for q_id, answer in answers.items():
+            question = questions.get(q_id)
+            if not question:
+                continue
+            
+            is_correct = False
+            if question['question_type'] in ['multiple_choice', 'true_false']:
+                is_correct = answer == question['correct_answer']
+            elif question['question_type'] == 'short_answer':
+                is_correct = answer.lower().strip() == question['correct_answer'].lower().strip()
+            
+            if is_correct:
+                score += question.get('points', 1)
+                correct_count += 1
+            
+            feedback[q_id] = is_correct
+        
+        total_points = quiz['total_points']
+        percentage = (score / total_points * 100) if total_points > 0 else 0
+        passed = percentage >= quiz['passing_score']
+        
+        # Update attempt
+        db['quiz_attempts'].update_one(
+            {'_id': ObjectId(attempt_id)},
+            {'$set': {
+                'answers': answers,
+                'time_spent': time_spent,
+                'score': score,
+                'percentage': round(percentage, 2),
+                'passed': passed,
+                'status': 'completed',
+                'completed_at': datetime.utcnow(),
+                'correct_count': correct_count,
+                'incorrect_count': len(answers) - correct_count,
+                'unanswered_count': len(quiz['questions']) - len(answers),
+                'feedback': feedback
+            }}
+        )
+        
+        return jsonify({
+            'message': 'Quiz submitted',
+            'score': score,
+            'total_points': total_points,
+            'percentage': round(percentage, 2),
+            'passed': passed,
+            'correct_count': correct_count
+        }), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@bp.route('/attempts/<attempt_id>', methods=['GET'])
+@jwt_required()
+def get_attempt_results(attempt_id):
+    """Get quiz attempt results"""
+    try:
+        user_id, role = get_user_info(get_jwt_identity())
+        
+        db = get_db()
+        attempt = db['quiz_attempts'].find_one({'_id': ObjectId(attempt_id)})
+        if not attempt or attempt['candidate_id'] != user_id:
+            return jsonify({'error': 'Unauthorized'}), 403
+        
+        attempt['_id'] = str(attempt['_id'])
+        attempt['started_at'] = attempt['started_at'].isoformat()
+        if attempt.get('completed_at'):
+            attempt['completed_at'] = attempt['completed_at'].isoformat()
+        
+        return jsonify({'attempt': attempt}), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@bp.route('/quizzes/<quiz_id>/analytics', methods=['GET'])
+@jwt_required()
+def get_quiz_analytics(quiz_id):
+    """Get quiz analytics (recruiter/admin only)"""
+    try:
+        user_id, role = get_user_info(get_jwt_identity())
+        if role not in ['company', 'admin']:
+            return jsonify({'error': 'Unauthorized'}), 403
+        
+        db = get_db()
+        attempts = list(db['quiz_attempts'].find({
+            'quiz_id': quiz_id,
+            'status': 'completed'
         }))
         
-        for assessment in assessments:
-            assessment['_id'] = str(assessment['_id'])
+        if not attempts:
+            return jsonify({'total_attempts': 0, 'average_score': 0, 'pass_rate': 0}), 200
+        
+        total = len(attempts)
+        avg_score = sum(a['percentage'] for a in attempts) / total
+        passed = sum(1 for a in attempts if a['passed'])
         
         return jsonify({
-            'assessments': assessments,
-            'count': len(assessments)
+            'total_attempts': total,
+            'average_score': round(avg_score, 2),
+            'pass_rate': round((passed / total * 100), 2),
+            'passed_count': passed,
+            'failed_count': total - passed
         }), 200
-        
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
-
-@bp.route('/<assessment_id>/submit', methods=['POST'])
-@jwt_required()
-def submit_assessment(assessment_id):
-    """Submit assessment responses"""
-    try:
-        current_user = get_jwt_identity()
-        
-        if current_user['role'] != 'candidate':
-            return jsonify({'error': 'Only candidates can submit assessments'}), 403
-        
-        data = request.get_json()
-        
-        if 'answers' not in data or 'application_id' not in data:
-            return jsonify({'error': 'Missing required fields'}), 400
-        
-        db = get_db()
-        assessments_collection = db['assessments']
-        responses_collection = db['assessment_responses']
-        
-        # Get assessment
-        assessment = assessments_collection.find_one({'_id': ObjectId(assessment_id)})
-        if not assessment:
-            return jsonify({'error': 'Assessment not found'}), 404
-        
-        # Calculate score (simple scoring for MCQ)
-        answers = data['answers']
-        questions = assessment['questions']
-        
-        correct_count = 0
-        for i, answer in enumerate(answers):
-            if i < len(questions):
-                correct_answer = questions[i].get('correct_answer')
-                if answer == correct_answer:
-                    correct_count += 1
-        
-        score = correct_count
-        percentage = (correct_count / len(questions)) * 100 if questions else 0
-        passed = percentage >= assessment['passing_score']
-        
-        # Create response
-        response = AssessmentResponse(
-            assessment_id=assessment_id,
-            candidate_id=current_user['user_id'],
-            application_id=data['application_id'],
-            answers=answers,
-            score=score,
-            percentage=round(percentage, 2),
-            started_at=data.get('started_at'),
-            completed_at=datetime.utcnow(),
-            time_taken_minutes=data.get('time_taken_minutes', 0),
-            passed=passed
-        )
-        
-        result = responses_collection.insert_one(response.to_dict())
-        
-        # Update application with assessment score
-        applications_collection = db['applications']
-        applications_collection.update_one(
-            {'_id': ObjectId(data['application_id'])},
-            {'$set': {
-                f'assessment_scores.{assessment_id}': percentage,
-                'updated_at': datetime.utcnow()
-            }}
-        )
-        
-        return jsonify({
-            'message': 'Assessment submitted successfully',
-            'response_id': str(result.inserted_id),
-            'score': score,
-            'percentage': round(percentage, 2),
-            'passed': passed
-        }), 201
-        
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
-
-@bp.route('/schedule-interview', methods=['POST'])
-@jwt_required()
-def schedule_interview():
-    """Schedule interview (recruiter only)"""
-    try:
-        current_user = get_jwt_identity()
-        
-        if current_user['role'] not in ['recruiter', 'admin']:
-            return jsonify({'error': 'Only recruiters can schedule interviews'}), 403
-        
-        data = request.get_json()
-        
-        required_fields = ['application_id', 'job_id', 'candidate_id', 'scheduled_time']
-        for field in required_fields:
-            if field not in data:
-                return jsonify({'error': f'Missing required field: {field}'}), 400
-        
-        # Create interview
-        interview = Interview(
-            application_id=data['application_id'],
-            job_id=data['job_id'],
-            candidate_id=data['candidate_id'],
-            recruiter_id=current_user['user_id'],
-            interview_type=data.get('interview_type', 'technical'),
-            scheduled_time=datetime.fromisoformat(data['scheduled_time']),
-            duration_minutes=data.get('duration_minutes', 60),
-            meeting_link=data.get('meeting_link', '')
-        )
-        
-        db = get_db()
-        interviews_collection = db['interviews']
-        result = interviews_collection.insert_one(interview.to_dict())
-        
-        # Update application
-        applications_collection = db['applications']
-        applications_collection.update_one(
-            {'_id': ObjectId(data['application_id'])},
-            {'$set': {
-                'interview_scheduled': data['scheduled_time'],
-                'status': 'interview_scheduled',
-                'updated_at': datetime.utcnow()
-            }}
-        )
-        
-        return jsonify({
-            'message': 'Interview scheduled successfully',
-            'interview_id': str(result.inserted_id)
-        }), 201
-        
     except Exception as e:
         return jsonify({'error': str(e)}), 500

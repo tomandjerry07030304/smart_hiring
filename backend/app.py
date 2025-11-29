@@ -14,9 +14,9 @@ from flask_cors import CORS
 from flask_jwt_extended import JWTManager
 from config.config import config
 from backend.models.database import Database
-from backend.routes import auth_routes, job_routes, candidate_routes, company_routes, email_preferences_routes
+from backend.routes import auth_routes, job_routes, candidate_routes, company_routes, email_preferences_routes, assessment_routes
 from backend.utils.license_validator import check_deployment_authorization, require_valid_license
-# Disabled for Render free tier: assessment_routes, dashboard_routes (require ML libraries)
+# Disabled for Render free tier: dashboard_routes (require ML libraries)
 
 # DEPLOYMENT AUTHORIZATION CHECK (Optional - can be disabled for cloud deployments)
 # Uncomment the following lines to enable license validation:
@@ -71,8 +71,8 @@ app.register_blueprint(job_routes.bp, url_prefix='/api/jobs')
 app.register_blueprint(candidate_routes.bp, url_prefix='/api/candidates')
 app.register_blueprint(company_routes.bp, url_prefix='/api/company')
 app.register_blueprint(email_preferences_routes.bp, url_prefix='/api/email')
+app.register_blueprint(assessment_routes.bp, url_prefix='/api/assessments')
 # Disabled for Render free tier (require ML libraries):
-# app.register_blueprint(assessment_routes.bp, url_prefix='/api/assessments')
 # app.register_blueprint(dashboard_routes.bp, url_prefix='/api/dashboard')
 
 # Root endpoint - serve frontend

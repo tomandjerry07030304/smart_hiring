@@ -1,101 +1,182 @@
+"""
+Assessment and Quiz Models
+Defines data structures for questions, quizzes, and quiz attempts
+"""
+
 from datetime import datetime
+from typing import List, Dict, Optional
 from bson import ObjectId
 
-class Assessment:
-    """Assessment model for tests/challenges"""
+class Question:
+    """Individual quiz question"""
     
-    collection_name = 'assessments'
+    def __init__(
+        self,
+        question_text: str,
+        question_type: str = 'multiple_choice',  # multiple_choice, true_false, short_answer
+        options: List[str] = None,
+        correct_answer: str = '',
+        correct_answers: List[str] = None,  # For multiple correct answers
+        points: int = 1,
+        difficulty: str = 'medium',  # easy, medium, hard
+        category: str = 'general',
+        tags: List[str] = None,
+        explanation: str = '',
+        created_by: str = '',
+        time_limit: int = 60  # seconds per question
+    ):
+        self.question_text = question_text
+        self.question_type = question_type
+        self.options = options or []
+        self.correct_answer = correct_answer
+        self.correct_answers = correct_answers or []
+        self.points = points
+        self.difficulty = difficulty
+        self.category = category
+        self.tags = tags or []
+        self.explanation = explanation
+        self.created_by = created_by
+        self.time_limit = time_limit
+        self.created_at = datetime.utcnow()
+        self.updated_at = datetime.utcnow()
+        self.is_active = True
+        self.usage_count = 0
     
-    def __init__(self, job_id, title, assessment_type, **kwargs):
-        self.job_id = job_id
-        self.title = title
-        self.assessment_type = assessment_type  # 'mcq', 'coding', 'behavioral'
-        self.duration_minutes = kwargs.get('duration_minutes', 60)
-        self.questions = kwargs.get('questions', [])
-        self.passing_score = kwargs.get('passing_score', 60)
-        self.is_active = kwargs.get('is_active', True)
-        self.created_at = kwargs.get('created_at', datetime.utcnow())
-        self.updated_at = kwargs.get('updated_at', datetime.utcnow())
-        
     def to_dict(self):
+        """Convert to dictionary for MongoDB"""
         return {
-            'job_id': self.job_id,
-            'title': self.title,
-            'assessment_type': self.assessment_type,
-            'duration_minutes': self.duration_minutes,
-            'questions': self.questions,
-            'passing_score': self.passing_score,
-            'is_active': self.is_active,
+            'question_text': self.question_text,
+            'question_type': self.question_type,
+            'options': self.options,
+            'correct_answer': self.correct_answer,
+            'correct_answers': self.correct_answers,
+            'points': self.points,
+            'difficulty': self.difficulty,
+            'category': self.category,
+            'tags': self.tags,
+            'explanation': self.explanation,
+            'created_by': self.created_by,
+            'time_limit': self.time_limit,
             'created_at': self.created_at,
-            'updated_at': self.updated_at
+            'updated_at': self.updated_at,
+            'is_active': self.is_active,
+            'usage_count': self.usage_count
         }
 
-class AssessmentResponse:
-    """Candidate's assessment responses"""
+class Quiz:
+    """Quiz/Assessment"""
     
-    collection_name = 'assessment_responses'
+    def __init__(
+        self,
+        title: str,
+        description: str,
+        created_by: str,
+        questions: List[str] = None,  # List of question IDs
+        duration: int = 3600,  # Total duration in seconds (default 60 minutes)
+        passing_score: int = 70,  # Percentage
+        total_points: int = 0,
+        job_id: Optional[str] = None,
+        is_required: bool = False,
+        randomize_questions: bool = False,
+        randomize_options: bool = False,
+        show_results_immediately: bool = True,
+        allow_review: bool = True,
+        max_attempts: int = 1,
+        tags: List[str] = None
+    ):
+        self.title = title
+        self.description = description
+        self.created_by = created_by
+        self.questions = questions or []
+        self.duration = duration
+        self.passing_score = passing_score
+        self.total_points = total_points
+        self.job_id = job_id
+        self.is_required = is_required
+        self.randomize_questions = randomize_questions
+        self.randomize_options = randomize_options
+        self.show_results_immediately = show_results_immediately
+        self.allow_review = allow_review
+        self.max_attempts = max_attempts
+        self.tags = tags or []
+        self.created_at = datetime.utcnow()
+        self.updated_at = datetime.utcnow()
+        self.is_active = True
+        self.attempts_count = 0
+        self.average_score = 0.0
     
-    def __init__(self, assessment_id, candidate_id, application_id, **kwargs):
-        self.assessment_id = assessment_id
-        self.candidate_id = candidate_id
-        self.application_id = application_id
-        self.answers = kwargs.get('answers', [])
-        self.score = kwargs.get('score', 0.0)
-        self.percentage = kwargs.get('percentage', 0.0)
-        self.started_at = kwargs.get('started_at', None)
-        self.completed_at = kwargs.get('completed_at', None)
-        self.time_taken_minutes = kwargs.get('time_taken_minutes', 0)
-        self.passed = kwargs.get('passed', False)
-        
     def to_dict(self):
+        """Convert to dictionary for MongoDB"""
         return {
-            'assessment_id': self.assessment_id,
+            'title': self.title,
+            'description': self.description,
+            'created_by': self.created_by,
+            'questions': self.questions,
+            'duration': self.duration,
+            'passing_score': self.passing_score,
+            'total_points': self.total_points,
+            'job_id': self.job_id,
+            'is_required': self.is_required,
+            'randomize_questions': self.randomize_questions,
+            'randomize_options': self.randomize_options,
+            'show_results_immediately': self.show_results_immediately,
+            'allow_review': self.allow_review,
+            'max_attempts': self.max_attempts,
+            'tags': self.tags,
+            'created_at': self.created_at,
+            'updated_at': self.updated_at,
+            'is_active': self.is_active,
+            'attempts_count': self.attempts_count,
+            'average_score': self.average_score
+        }
+
+class QuizAttempt:
+    """Individual quiz attempt by a candidate"""
+    
+    def __init__(
+        self,
+        quiz_id: str,
+        candidate_id: str,
+        started_at: datetime = None,
+        answers: Dict[str, any] = None,  # question_id -> answer
+        time_spent: Dict[str, int] = None,  # question_id -> seconds
+        score: float = 0.0,
+        percentage: float = 0.0,
+        passed: bool = False,
+        status: str = 'in_progress'  # in_progress, completed, abandoned
+    ):
+        self.quiz_id = quiz_id
+        self.candidate_id = candidate_id
+        self.started_at = started_at or datetime.utcnow()
+        self.answers = answers or {}
+        self.time_spent = time_spent or {}
+        self.score = score
+        self.percentage = percentage
+        self.passed = passed
+        self.status = status
+        self.completed_at = None
+        self.total_time_spent = 0
+        self.correct_count = 0
+        self.incorrect_count = 0
+        self.unanswered_count = 0
+        self.feedback = {}  # question_id -> is_correct
+    
+    def to_dict(self):
+        """Convert to dictionary for MongoDB"""
+        return {
+            'quiz_id': self.quiz_id,
             'candidate_id': self.candidate_id,
-            'application_id': self.application_id,
+            'started_at': self.started_at,
             'answers': self.answers,
+            'time_spent': self.time_spent,
             'score': self.score,
             'percentage': self.percentage,
-            'started_at': self.started_at,
-            'completed_at': self.completed_at,
-            'time_taken_minutes': self.time_taken_minutes,
-            'passed': self.passed
-        }
-
-class Interview:
-    """Interview scheduling model"""
-    
-    collection_name = 'interviews'
-    
-    def __init__(self, application_id, job_id, candidate_id, recruiter_id, **kwargs):
-        self.application_id = application_id
-        self.job_id = job_id
-        self.candidate_id = candidate_id
-        self.recruiter_id = recruiter_id
-        self.interview_type = kwargs.get('interview_type', 'technical')  # technical, hr, behavioral
-        self.scheduled_time = kwargs.get('scheduled_time', None)
-        self.duration_minutes = kwargs.get('duration_minutes', 60)
-        self.meeting_link = kwargs.get('meeting_link', '')
-        self.status = kwargs.get('status', 'scheduled')  # scheduled, completed, cancelled, rescheduled
-        self.notes = kwargs.get('notes', '')
-        self.rating = kwargs.get('rating', None)
-        self.feedback = kwargs.get('feedback', '')
-        self.created_at = kwargs.get('created_at', datetime.utcnow())
-        self.updated_at = kwargs.get('updated_at', datetime.utcnow())
-        
-    def to_dict(self):
-        return {
-            'application_id': self.application_id,
-            'job_id': self.job_id,
-            'candidate_id': self.candidate_id,
-            'recruiter_id': self.recruiter_id,
-            'interview_type': self.interview_type,
-            'scheduled_time': self.scheduled_time,
-            'duration_minutes': self.duration_minutes,
-            'meeting_link': self.meeting_link,
+            'passed': self.passed,
             'status': self.status,
-            'notes': self.notes,
-            'rating': self.rating,
-            'feedback': self.feedback,
-            'created_at': self.created_at,
-            'updated_at': self.updated_at
+            'completed_at': self.completed_at,
+            'total_time_spent': self.total_time_spent,
+            'correct_count': self.correct_count,
+            'incorrect_count': self.incorrect_count,
+            'unanswered_count': self.unanswered_count,
+            'feedback': self.feedback
         }
