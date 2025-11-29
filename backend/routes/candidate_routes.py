@@ -11,6 +11,7 @@ from backend.utils.resume_parser import extract_text_from_file, anonymize_text
 from backend.utils.matching import extract_skills, analyze_candidate
 from backend.utils.cci_calculator import calculate_career_consistency_index
 from backend.utils.email_service import email_service
+from backend.routes.audit_routes import log_audit_event
 
 bp = Blueprint('candidates', __name__)
 
@@ -186,6 +187,27 @@ def apply_to_job(job_id):
         )
         
         result = applications_collection.insert_one(application.to_dict())
+        application_id = str(result.inserted_id)
+        
+        # Log audit event for application submission
+        log_audit_event(
+            event_type='application_submitted',
+            user_id=user_id,
+            job_id=job_id,
+            candidate_id=user_id,
+            application_id=application_id,
+            details={
+                'job_title': job.get('title'),
+                'anonymized': True
+            },
+            scores={
+                'overall_score': analysis['overall_score'],
+                'tfidf_score': analysis['tfidf_score'],
+                'skill_match': analysis['skill_match'],
+                'cci_score': analysis.get('cci_score'),
+                'decision': analysis['decision']
+            }
+        )
         
         # Update job application count
         jobs_collection.update_one(

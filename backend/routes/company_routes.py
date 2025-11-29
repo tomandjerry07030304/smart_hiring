@@ -6,6 +6,7 @@ from bson import ObjectId
 from backend.models.database import get_db
 from backend.utils.email_service import email_service
 from backend.utils.matching import calculate_skill_match, compute_overall_score, extract_skills
+from backend.routes.audit_routes import log_audit_event
 
 bp = Blueprint('company', __name__)
 
@@ -331,9 +332,29 @@ def get_ranked_candidates(job_id):
         # Sort by overall score (highest first)
         ranked_candidates.sort(key=lambda x: x['scores']['overall_score'], reverse=True)
         
-        # Add rank numbers
+        # Add rank numbers and log audit events
         for i, candidate in enumerate(ranked_candidates, 1):
             candidate['rank'] = i
+            
+            # Log ranking event for audit trail
+            log_audit_event(
+                event_type='ranked',
+                user_id=user_id,
+                job_id=job_id,
+                candidate_id=candidate['candidate_id'],
+                application_id=candidate['application_id'],
+                details={
+                    'rank': i,
+                    'total_applicants': len(ranked_candidates)
+                },
+                scores={
+                    'overall_score': candidate['scores']['overall_score'],
+                    'skill_match': candidate['scores']['skill_match'],
+                    'experience_score': candidate['scores']['experience_score'],
+                    'matched_skills_count': candidate['skills']['match_count'],
+                    'total_required_skills': candidate['skills']['total_required']
+                }
+            )
         
         return jsonify({
             'job_id': job_id,
