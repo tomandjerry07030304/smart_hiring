@@ -4,6 +4,7 @@ from datetime import datetime
 from bson import ObjectId
 
 from backend.models.database import get_db
+from backend.utils.email_service import email_service
 
 bp = Blueprint('company', __name__)
 
@@ -81,8 +82,26 @@ def update_application_status(application_id):
         if result.modified_count == 0:
             return jsonify({'error': 'Failed to update status'}), 500
         
-        # TODO: Send email notification to candidate
-        # This will be implemented in the email notification system
+        # Send email notification to candidate
+        try:
+            candidates_collection = db['candidates']
+            users_collection = db['users']
+            jobs_collection = db['jobs']
+            
+            candidate_id = application.get('candidate_id')
+            candidate_user = users_collection.find_one({'_id': ObjectId(candidate_id)})
+            job = jobs_collection.find_one({'_id': ObjectId(application.get('job_id'))})
+            
+            if candidate_user and job:
+                email_service.send_status_update_email(
+                    to_email=candidate_user.get('email'),
+                    candidate_name=candidate_user.get('full_name'),
+                    job_title=job.get('title'),
+                    new_status=new_status,
+                    note=note if note else None
+                )
+        except Exception as email_error:
+            print(f"⚠️ Status update email failed: {email_error}")
         
         return jsonify({
             'message': 'Status updated successfully',

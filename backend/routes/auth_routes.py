@@ -12,6 +12,7 @@ from backend.models.database import get_db
 from backend.models.user import User, Candidate
 from backend.utils.sanitizer import sanitizer
 from backend.utils.rate_limiter import rate_limit
+from backend.utils.email_service import email_service
 
 bp = Blueprint('auth', __name__)
 bcrypt = Bcrypt()
@@ -97,6 +98,12 @@ def register():
         
         # Generate JWT token
         access_token = create_access_token(identity={'user_id': user_id, 'role': role})
+        
+        # Send welcome email (non-blocking)
+        try:
+            email_service.send_welcome_email(email, full_name, role)
+        except Exception as email_error:
+            print(f"⚠️ Welcome email failed: {email_error}")
         
         return jsonify({
             'message': 'User registered successfully',

@@ -10,6 +10,7 @@ from backend.models.user import Candidate
 from backend.utils.resume_parser import extract_text_from_file, anonymize_text
 from backend.utils.matching import extract_skills, analyze_candidate
 from backend.utils.cci_calculator import calculate_career_consistency_index
+from backend.utils.email_service import email_service
 
 bp = Blueprint('candidates', __name__)
 
@@ -197,6 +198,35 @@ def apply_to_job(job_id):
             {'user_id': user_id},
             {'$push': {'applications': job_id}}
         )
+        
+        # Send email notifications
+        try:
+            users_collection = db['users']
+            candidate_user = users_collection.find_one({'_id': ObjectId(user_id)})
+            
+            # Send confirmation email to candidate
+            if candidate_user:
+                email_service.send_application_confirmation(
+                    to_email=candidate_user.get('email'),
+                    candidate_name=candidate_user.get('full_name'),
+                    job_title=job.get('title'),
+                    company_name=job.get('company_name', 'the company')
+                )
+            
+            # Send alert email to recruiter
+            recruiter_id = job.get('recruiter_id')
+            if recruiter_id:
+                recruiter_user = users_collection.find_one({'_id': ObjectId(recruiter_id)})
+                if recruiter_user:
+                    email_service.send_new_application_alert(
+                        to_email=recruiter_user.get('email'),
+                        recruiter_name=recruiter_user.get('full_name'),
+                        candidate_name=candidate_user.get('full_name'),
+                        job_title=job.get('title'),
+                        match_score=analysis['overall_score']
+                    )
+        except Exception as email_error:
+            print(f"⚠️ Application emails failed: {email_error}")
         
         return jsonify({
             'message': 'Application submitted successfully',
