@@ -12,10 +12,10 @@ function loadCandidateDashboard() {
                 <span>Candidate Portal</span>
             </div>
             <div class="navbar-menu">
-                <button class="nav-link active" onclick="switchCandidateTab('browse')">🔍 Browse Jobs</button>
-                <button class="nav-link" onclick="switchCandidateTab('applications')">📋 My Applications</button>
-                <button class="nav-link" onclick="switchCandidateTab('assessments')">📝 Assessments</button>
-                <button class="nav-link" onclick="switchCandidateTab('profile')">👤 Profile</button>
+                <button class="nav-link active" onclick="switchCandidateTab('browse', event)">🔍 Browse Jobs</button>
+                <button class="nav-link" onclick="switchCandidateTab('applications', event)">📋 My Applications</button>
+                <button class="nav-link" onclick="switchCandidateTab('assessments', event)">📝 Assessments</button>
+                <button class="nav-link" onclick="switchCandidateTab('profile', event)">👤 Profile</button>
             </div>
             <div class="navbar-actions">
                 <span class="user-info">${currentUser.email}</span>
@@ -33,19 +33,36 @@ function loadCandidateDashboard() {
     loadCandidateBrowse();
 }
 
-function switchCandidateTab(tab) {
+function switchCandidateTab(tab, event) {
+    // Remove active state from all nav links and content
     document.querySelectorAll('#candidateDashboard .nav-link').forEach(l => l.classList.remove('active'));
-    document.querySelectorAll('#candidateDashboard .tab-content').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('#candidateDashboard .tab-content').forEach(t => {
+        t.classList.remove('active');
+        t.style.display = 'none';
+    });
     
-    event.target.classList.add('active');
-    document.getElementById(`candidate${tab.charAt(0).toUpperCase() + tab.slice(1)}`).classList.add('active');
+    // Add active state to clicked nav link
+    if (event && event.target) {
+        event.target.classList.add('active');
+    }
     
+    // Show the selected tab content
+    const tabContent = document.getElementById(`candidate${tab.charAt(0).toUpperCase() + tab.slice(1)}`);
+    if (tabContent) {
+        tabContent.classList.add('active');
+        tabContent.style.display = 'block';
+    }
+    
+    // Load content based on tab with smooth transition
     switch(tab) {
         case 'browse': loadCandidateBrowse(); break;
         case 'applications': loadCandidateApplications(); break;
         case 'assessments': loadCandidateAssessments(); break;
         case 'profile': loadCandidateProfile(); break;
     }
+    
+    // Scroll to top smoothly
+    window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
 async function loadCandidateBrowse() {
