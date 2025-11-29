@@ -7,7 +7,7 @@ import os
 import base64
 from cryptography.fernet import Fernet
 from cryptography.hazmat.primitives import hashes
-from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2
+from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 from typing import Optional
 import logging
 
@@ -33,7 +33,7 @@ class EncryptionManager:
             secret = os.getenv('JWT_SECRET_KEY', 'default-secret-key').encode()
             salt = b'smart-hiring-salt'  # Should be stored securely
             
-            kdf = PBKDF2(
+            kdf = PBKDF2HMAC(
                 algorithm=hashes.SHA256(),
                 length=32,
                 salt=salt,
