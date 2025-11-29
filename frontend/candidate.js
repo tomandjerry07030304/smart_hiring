@@ -171,10 +171,12 @@ async function viewJobDetails(jobId) {
                     <p><strong>💼 Job Type:</strong> ${job.job_type}</p>
                     <p><strong>🏢 Department:</strong> ${job.department}</p>
                     <h4>Description</h4>
-                    <p>${job.description}</p>
+                    <p style="white-space: pre-line;">${job.description}</p>
                     <h4>Requirements</h4>
-                    <ul>
-                        ${(job.requirements || []).map(r => `<li>${r}</li>`).join('')}
+                    <ul style="line-height: 1.8;">
+                        ${Array.isArray(job.requirements) 
+                            ? job.requirements.map(r => `<li>${r}</li>`).join('') 
+                            : (job.requirements || '').split(/\n|\.(?=\s[A-Z])/).filter(r => r.trim()).map(r => `<li>${r.trim()}</li>`).join('')}
                     </ul>
                     <h4>Required Skills</h4>
                     <div class="job-tags">
