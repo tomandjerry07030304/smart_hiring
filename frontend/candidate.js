@@ -15,6 +15,7 @@ function loadCandidateDashboard() {
                 <button class="nav-link active" onclick="switchCandidateTab('browse', event)">🔍 Browse Jobs</button>
                 <button class="nav-link" onclick="switchCandidateTab('applications', event)">📋 My Applications</button>
                 <button class="nav-link" onclick="switchCandidateTab('assessments', event)">📝 Assessments</button>
+                <button class="nav-link" onclick="switchCandidateTab('analytics', event)">📊 My Analytics</button>
                 <button class="nav-link" onclick="switchCandidateTab('profile', event)">👤 Profile</button>
             </div>
             <div class="navbar-actions">
@@ -26,6 +27,7 @@ function loadCandidateDashboard() {
             <div id="candidateBrowse" class="tab-content active"></div>
             <div id="candidateApplications" class="tab-content"></div>
             <div id="candidateAssessments" class="tab-content"></div>
+            <div id="candidateAnalytics" class="tab-content"></div>
             <div id="candidateProfile" class="tab-content"></div>
         </div>
     `;
@@ -58,6 +60,7 @@ function switchCandidateTab(tab, event) {
         case 'browse': loadCandidateBrowse(); break;
         case 'applications': loadCandidateApplications(); break;
         case 'assessments': loadCandidateAssessments(); break;
+        case 'analytics': loadCandidateAnalytics(); break;
         case 'profile': loadCandidateProfile(); break;
     }
     
@@ -998,4 +1001,455 @@ function candidateLogout() {
     
     // Reload the page to return to login
     window.location.href = '/';
+}
+
+// ============================================
+// CANDIDATE ANALYTICS DASHBOARD
+// ============================================
+async function loadCandidateAnalytics() {
+    const container = document.getElementById('candidateAnalytics');
+    container.innerHTML = '<div class="loading">Loading your analytics...</div>';
+    
+    try {
+        // Fetch candidate data
+        const [appsRes, profileRes, jobsRes] = await Promise.all([
+            fetch(`${API_URL}/applications/my-applications`, {
+                headers: { 'Authorization': `Bearer ${authToken}` }
+            }),
+            fetch(`${API_URL}/candidates/profile`, {
+                headers: { 'Authorization': `Bearer ${authToken}` }
+            }),
+            fetch(`${API_URL}/jobs`, {
+                headers: { 'Authorization': `Bearer ${authToken}` }
+            })
+        ]);
+        
+        const applications = await appsRes.json();
+        const profile = await profileRes.json();
+        const allJobs = await jobsRes.json();
+        
+        // Calculate metrics
+        const totalApps = applications.length;
+        const shortlisted = applications.filter(a => a.status === 'shortlisted').length;
+        const interviewed = applications.filter(a => a.status === 'interviewed').length;
+        const hired = applications.filter(a => a.status === 'hired').length;
+        const rejected = applications.filter(a => a.status === 'rejected').length;
+        const pending = applications.filter(a => a.status === 'applied').length;
+        
+        // Success rates
+        const shortlistRate = totalApps > 0 ? ((shortlisted / totalApps) * 100).toFixed(1) : 0;
+        const interviewRate = totalApps > 0 ? ((interviewed / totalApps) * 100).toFixed(1) : 0;
+        const successRate = totalApps > 0 ? (((shortlisted + interviewed + hired) / totalApps) * 100).toFixed(1) : 0;
+        
+        // Average match score
+        const avgScore = totalApps > 0 ? 
+            (applications.reduce((sum, a) => sum + (a.cci_score || 0), 0) / totalApps).toFixed(1) : 0;
+        
+        // Profile completion
+        const profileCompletion = calculateProfileCompletion(profile);
+        
+        // Matching jobs count
+        const candidateSkills = profile.skills || [];
+        const matchingJobs = allJobs.filter(job => {
+            const jobSkills = job.required_skills || [];
+            const matchedSkills = jobSkills.filter(skill => 
+                candidateSkills.some(cs => cs.toLowerCase().includes(skill.toLowerCase()) || 
+                                          skill.toLowerCase().includes(cs.toLowerCase()))
+            );
+            return matchedSkills.length >= jobSkills.length * 0.5;
+        }).length;
+        
+        container.innerHTML = `
+            <div class="analytics-header">
+                <div class="analytics-title">
+                    <h2>📊 Your Career Analytics</h2>
+                    <p class="subtitle">Track your job search progress and optimize your profile</p>
+                </div>
+                <div class="analytics-actions">
+                    <button class="btn btn-secondary" onclick="exportCandidateReport()">
+                        <span>📥</span> Export Report
+                    </button>
+                </div>
+            </div>
+            
+            <!-- Performance KPIs -->
+            <div class="analytics-kpi-grid">
+                <div class="kpi-card kpi-primary">
+                    <div class="kpi-icon">📋</div>
+                    <div class="kpi-content">
+                        <div class="kpi-value">${totalApps}</div>
+                        <div class="kpi-label">Applications Submitted</div>
+                        <div class="kpi-trend ${pending > 0 ? 'positive' : 'neutral'}">
+                            <span>${pending > 0 ? '↑' : '→'} ${pending} pending</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="kpi-card kpi-success">
+                    <div class="kpi-icon">✓</div>
+                    <div class="kpi-content">
+                        <div class="kpi-value">${successRate}%</div>
+                        <div class="kpi-label">Success Rate</div>
+                        <div class="kpi-trend ${successRate >= 50 ? 'positive' : 'neutral'}">
+                            <span>${successRate >= 50 ? '↑' : '→'} ${shortlisted + interviewed + hired} advanced</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="kpi-card kpi-warning">
+                    <div class="kpi-icon">⭐</div>
+                    <div class="kpi-content">
+                        <div class="kpi-value">${avgScore}</div>
+                        <div class="kpi-label">Avg Match Score</div>
+                        <div class="kpi-trend ${avgScore >= 70 ? 'positive' : 'neutral'}">
+                            <span>${avgScore >= 70 ? '↑' : '→'} out of 100</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="kpi-card kpi-info">
+                    <div class="kpi-icon">🎯</div>
+                    <div class="kpi-content">
+                        <div class="kpi-value">${matchingJobs}</div>
+                        <div class="kpi-label">Matching Jobs Available</div>
+                        <div class="kpi-trend positive">
+                            <span>↑ Based on your skills</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Application Journey -->
+            <div class="analytics-section">
+                <div class="section-header">
+                    <h3>🚀 Your Application Journey</h3>
+                    <p>Track your progress through the hiring process</p>
+                </div>
+                <div class="funnel-container">
+                    <div class="funnel-stage" style="width: 100%;">
+                        <div class="funnel-bar" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
+                            <span class="funnel-label">Applied</span>
+                            <span class="funnel-value">${totalApps}</span>
+                        </div>
+                        <div class="funnel-percent">100%</div>
+                    </div>
+                    
+                    <div class="funnel-stage" style="width: ${shortlisted > 0 ? (shortlisted/totalApps*100) : 0}%;">
+                        <div class="funnel-bar" style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);">
+                            <span class="funnel-label">Shortlisted</span>
+                            <span class="funnel-value">${shortlisted}</span>
+                        </div>
+                        <div class="funnel-percent">${shortlistRate}%</div>
+                    </div>
+                    
+                    <div class="funnel-stage" style="width: ${interviewed > 0 ? (interviewed/totalApps*100) : 0}%;">
+                        <div class="funnel-bar" style="background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);">
+                            <span class="funnel-label">Interviewed</span>
+                            <span class="funnel-value">${interviewed}</span>
+                        </div>
+                        <div class="funnel-percent">${interviewRate}%</div>
+                    </div>
+                    
+                    <div class="funnel-stage" style="width: ${hired > 0 ? (hired/totalApps*100) : 5}%;">
+                        <div class="funnel-bar" style="background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%);">
+                            <span class="funnel-label">Hired</span>
+                            <span class="funnel-value">${hired}</span>
+                        </div>
+                        <div class="funnel-percent">${totalApps > 0 ? ((hired/totalApps)*100).toFixed(1) : 0}%</div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Profile & Skills Analysis -->
+            <div class="analytics-grid-2">
+                <div class="analytics-section">
+                    <div class="section-header">
+                        <h3>👤 Profile Strength</h3>
+                        <p>Complete your profile to increase match rates</p>
+                    </div>
+                    <div class="profile-strength">
+                        <div class="strength-circle">
+                            <svg viewBox="0 0 200 200" class="circular-progress">
+                                <circle cx="100" cy="100" r="80" fill="none" stroke="#f3f4f6" stroke-width="20"/>
+                                <circle cx="100" cy="100" r="80" fill="none" stroke="url(#gradient)" stroke-width="20"
+                                    stroke-dasharray="${(profileCompletion/100)*502.4} 502.4" 
+                                    transform="rotate(-90 100 100)" stroke-linecap="round"/>
+                                <defs>
+                                    <linearGradient id="gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                                        <stop offset="0%" style="stop-color:#667eea"/>
+                                        <stop offset="100%" style="stop-color:#764ba2"/>
+                                    </linearGradient>
+                                </defs>
+                            </svg>
+                            <div class="strength-value">${profileCompletion}%</div>
+                        </div>
+                        <div class="strength-tips">
+                            <h4>Profile Completion Tips:</h4>
+                            <ul>
+                                ${!profile.resume_path ? '<li>✕ Upload your resume</li>' : '<li>✓ Resume uploaded</li>'}
+                                ${!profile.skills || profile.skills.length === 0 ? '<li>✕ Add your skills</li>' : '<li>✓ Skills added (' + profile.skills.length + ')</li>'}
+                                ${!profile.experience ? '<li>✕ Add work experience</li>' : '<li>✓ Experience added</li>'}
+                                ${!profile.education ? '<li>✕ Add education details</li>' : '<li>✓ Education added</li>'}
+                                ${!profile.phone ? '<li>✕ Add phone number</li>' : '<li>✓ Phone number added</li>'}
+                            </ul>
+                            <button class="btn btn-primary" onclick="switchCandidateTab('profile', event)">
+                                Complete Profile
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="analytics-section">
+                    <div class="section-header">
+                        <h3>💼 Application Status</h3>
+                        <p>Current state of your applications</p>
+                    </div>
+                    <div class="decision-breakdown">
+                        <div class="decision-item">
+                            <div class="decision-label">
+                                <span class="decision-dot" style="background: #10b981;"></span>
+                                Hired
+                            </div>
+                            <div class="decision-bar">
+                                <div class="decision-fill" style="width: ${totalApps > 0 ? (hired/totalApps*100) : 0}%; background: #10b981;"></div>
+                            </div>
+                            <div class="decision-value">${hired}</div>
+                        </div>
+                        
+                        <div class="decision-item">
+                            <div class="decision-label">
+                                <span class="decision-dot" style="background: #3b82f6;"></span>
+                                Interviewed
+                            </div>
+                            <div class="decision-bar">
+                                <div class="decision-fill" style="width: ${totalApps > 0 ? (interviewed/totalApps*100) : 0}%; background: #3b82f6;"></div>
+                            </div>
+                            <div class="decision-value">${interviewed}</div>
+                        </div>
+                        
+                        <div class="decision-item">
+                            <div class="decision-label">
+                                <span class="decision-dot" style="background: #f59e0b;"></span>
+                                Shortlisted
+                            </div>
+                            <div class="decision-bar">
+                                <div class="decision-fill" style="width: ${totalApps > 0 ? (shortlisted/totalApps*100) : 0}%; background: #f59e0b;"></div>
+                            </div>
+                            <div class="decision-value">${shortlisted}</div>
+                        </div>
+                        
+                        <div class="decision-item">
+                            <div class="decision-label">
+                                <span class="decision-dot" style="background: #6b7280;"></span>
+                                Pending Review
+                            </div>
+                            <div class="decision-bar">
+                                <div class="decision-fill" style="width: ${totalApps > 0 ? (pending/totalApps*100) : 0}%; background: #6b7280;"></div>
+                            </div>
+                            <div class="decision-value">${pending}</div>
+                        </div>
+                        
+                        <div class="decision-item">
+                            <div class="decision-label">
+                                <span class="decision-dot" style="background: #ef4444;"></span>
+                                Not Selected
+                            </div>
+                            <div class="decision-bar">
+                                <div class="decision-fill" style="width: ${totalApps > 0 ? (rejected/totalApps*100) : 0}%; background: #ef4444;"></div>
+                            </div>
+                            <div class="decision-value">${rejected}</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Skills Match Analysis -->
+            <div class="analytics-section">
+                <div class="section-header">
+                    <h3>🎯 Skills Match Insights</h3>
+                    <p>How your skills compare to job requirements</p>
+                </div>
+                <div class="skills-insights">
+                    ${generateSkillsInsights(applications, profile)}
+                </div>
+            </div>
+            
+            <!-- Recommended Actions -->
+            <div class="analytics-section">
+                <div class="section-header">
+                    <h3>💡 Recommended Actions</h3>
+                    <p>Personalized tips to improve your job search success</p>
+                </div>
+                <div class="recommendations-grid">
+                    ${generateRecommendations(applications, profile, profileCompletion, avgScore, matchingJobs)}
+                </div>
+            </div>
+        `;
+        
+    } catch (error) {
+        console.error('Error loading candidate analytics:', error);
+        container.innerHTML = `
+            <div class="alert alert-error">
+                Failed to load analytics. Please try again.
+            </div>
+        `;
+    }
+}
+
+function calculateProfileCompletion(profile) {
+    let score = 0;
+    const factors = [
+        profile.resume_path,
+        profile.skills && profile.skills.length > 0,
+        profile.experience,
+        profile.education,
+        profile.phone,
+        profile.location,
+        profile.linkedin
+    ];
+    
+    score = (factors.filter(f => f).length / factors.length) * 100;
+    return Math.round(score);
+}
+
+function generateSkillsInsights(applications, profile) {
+    if (applications.length === 0) {
+        return '<div class="empty-state">Apply to jobs to see skills match insights</div>';
+    }
+    
+    // Analyze most common required skills
+    const allRequiredSkills = {};
+    const candidateSkills = (profile.skills || []).map(s => s.toLowerCase());
+    
+    applications.forEach(app => {
+        if (app.job_details && app.job_details.required_skills) {
+            app.job_details.required_skills.forEach(skill => {
+                const skillLower = skill.toLowerCase();
+                if (!allRequiredSkills[skillLower]) {
+                    allRequiredSkills[skillLower] = {
+                        name: skill,
+                        count: 0,
+                        hasSkill: candidateSkills.some(cs => 
+                            cs.includes(skillLower) || skillLower.includes(cs)
+                        )
+                    };
+                }
+                allRequiredSkills[skillLower].count++;
+            });
+        }
+    });
+    
+    const sortedSkills = Object.values(allRequiredSkills)
+        .sort((a, b) => b.count - a.count)
+        .slice(0, 8);
+    
+    if (sortedSkills.length === 0) {
+        return '<div class="empty-state">No skills data available</div>';
+    }
+    
+    return `
+        <div class="skills-grid">
+            ${sortedSkills.map(skill => `
+                <div class="skill-insight-card ${skill.hasSkill ? 'has-skill' : 'missing-skill'}">
+                    <div class="skill-icon">${skill.hasSkill ? '✓' : '+'}</div>
+                    <div class="skill-name">${skill.name}</div>
+                    <div class="skill-demand">Required in ${skill.count} ${skill.count === 1 ? 'job' : 'jobs'}</div>
+                    <div class="skill-status ${skill.hasSkill ? 'positive' : 'neutral'}">
+                        ${skill.hasSkill ? 'You have this' : 'Consider learning'}
+                    </div>
+                </div>
+            `).join('')}
+        </div>
+    `;
+}
+
+function generateRecommendations(applications, profile, profileCompletion, avgScore, matchingJobs) {
+    const recommendations = [];
+    
+    // Profile completion
+    if (profileCompletion < 80) {
+        recommendations.push({
+            icon: '👤',
+            title: 'Complete Your Profile',
+            desc: `Your profile is ${profileCompletion}% complete. Complete it to increase visibility by up to 40%.`,
+            action: 'Complete Profile',
+            color: '#667eea',
+            onclick: "switchCandidateTab('profile', event)"
+        });
+    }
+    
+    // Match score improvement
+    if (avgScore < 70 && avgScore > 0) {
+        recommendations.push({
+            icon: '⭐',
+            title: 'Improve Match Scores',
+            desc: 'Your average match score is ' + avgScore + '. Add more relevant skills to increase your match rate.',
+            action: 'Update Skills',
+            color: '#f59e0b',
+            onclick: "switchCandidateTab('profile', event)"
+        });
+    }
+    
+    // More applications
+    if (applications.length < 5) {
+        recommendations.push({
+            icon: '📋',
+            title: 'Apply to More Jobs',
+            desc: `You've applied to ${applications.length} jobs. Applying to 10-15 jobs increases your chances of success.`,
+            action: 'Browse Jobs',
+            color: '#10b981',
+            onclick: "switchCandidateTab('browse', event)"
+        });
+    }
+    
+    // Matching jobs available
+    if (matchingJobs > 0) {
+        recommendations.push({
+            icon: '🎯',
+            title: 'Matching Jobs Available',
+            desc: `There are ${matchingJobs} jobs that match your skills. Apply now to increase your chances!`,
+            action: 'View Matches',
+            color: '#3b82f6',
+            onclick: "switchCandidateTab('browse', event)"
+        });
+    }
+    
+    // Take assessments
+    recommendations.push({
+        icon: '📝',
+        title: 'Take Skill Assessments',
+        desc: 'Complete assessments to validate your skills and stand out to employers.',
+        action: 'View Assessments',
+        color: '#f093fb',
+        onclick: "switchCandidateTab('assessments', event)"
+    });
+    
+    if (recommendations.length === 0) {
+        recommendations.push({
+            icon: '🎉',
+            title: 'Great Job!',
+            desc: 'Your profile is optimized. Keep applying and stay active!',
+            action: 'Browse Jobs',
+            color: '#10b981',
+            onclick: "switchCandidateTab('browse', event)"
+        });
+    }
+    
+    return recommendations.map(rec => `
+        <div class="recommendation-card" style="border-left: 4px solid ${rec.color};">
+            <div class="rec-icon" style="background: ${rec.color}20;">${rec.icon}</div>
+            <div class="rec-content">
+                <h4>${rec.title}</h4>
+                <p>${rec.desc}</p>
+                <button class="btn btn-secondary btn-sm" onclick="${rec.onclick}">
+                    ${rec.action}
+                </button>
+            </div>
+        </div>
+    `).join('');
+}
+
+function exportCandidateReport() {
+    showNotification('Exporting your career report...', 'success');
+    // In production, this would generate PDF report
 }

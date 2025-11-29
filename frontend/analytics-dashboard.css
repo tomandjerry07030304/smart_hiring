@@ -850,3 +850,224 @@
     color: #6b7280;
     animation: pulse 1.5s ease-in-out infinite;
 }
+
+/* ============================================
+   CANDIDATE ANALYTICS FEATURES
+   ============================================ */
+
+/* Profile Strength Circle */
+.profile-strength {
+    display: flex;
+    gap: 32px;
+    align-items: center;
+    padding: 12px 0;
+}
+
+.strength-circle {
+    position: relative;
+    width: 200px;
+    height: 200px;
+    flex-shrink: 0;
+}
+
+.circular-progress {
+    transform: rotate(0deg);
+    transition: all 1s ease;
+}
+
+.strength-value {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 42px;
+    font-weight: 700;
+    color: #1a202c;
+}
+
+.strength-tips {
+    flex: 1;
+}
+
+.strength-tips h4 {
+    font-size: 18px;
+    font-weight: 700;
+    color: #1a202c;
+    margin-bottom: 16px;
+}
+
+.strength-tips ul {
+    list-style: none;
+    margin-bottom: 20px;
+}
+
+.strength-tips ul li {
+    padding: 8px 0;
+    font-size: 14px;
+    color: #4b5563;
+    font-weight: 500;
+}
+
+/* Skills Insights Grid */
+.skills-insights {
+    padding: 12px 0;
+}
+
+.skills-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 16px;
+}
+
+.skill-insight-card {
+    background: white;
+    border: 2px solid #e5e7eb;
+    border-radius: 12px;
+    padding: 20px;
+    text-align: center;
+    transition: all 0.3s;
+}
+
+.skill-insight-card.has-skill {
+    border-color: #10b981;
+    background: linear-gradient(135deg, #ecfdf5 0%, #ffffff 100%);
+}
+
+.skill-insight-card.missing-skill {
+    border-color: #f59e0b;
+    background: linear-gradient(135deg, #fffbeb 0%, #ffffff 100%);
+}
+
+.skill-insight-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 8px 24px rgba(0,0,0,0.1);
+}
+
+.skill-icon {
+    width: 48px;
+    height: 48px;
+    margin: 0 auto 12px;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 24px;
+    font-weight: 700;
+}
+
+.has-skill .skill-icon {
+    background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+    color: white;
+}
+
+.missing-skill .skill-icon {
+    background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+    color: white;
+}
+
+.skill-name {
+    font-weight: 700;
+    font-size: 15px;
+    color: #1a202c;
+    margin-bottom: 4px;
+}
+
+.skill-demand {
+    font-size: 12px;
+    color: #6b7280;
+    margin-bottom: 8px;
+}
+
+.skill-status {
+    font-size: 12px;
+    font-weight: 600;
+    padding: 4px 10px;
+    border-radius: 6px;
+    display: inline-block;
+}
+
+.skill-status.positive {
+    background: #dcfce7;
+    color: #166534;
+}
+
+.skill-status.neutral {
+    background: #fef3c7;
+    color: #854d0e;
+}
+
+/* Recommendations Grid */
+.recommendations-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.recommendation-card {
+    background: white;
+    border-radius: 12px;
+    padding: 24px;
+    display: flex;
+    gap: 20px;
+    transition: all 0.3s;
+}
+
+.recommendation-card:hover {
+    transform: translateX(4px);
+    box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+}
+
+.rec-icon {
+    width: 64px;
+    height: 64px;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 32px;
+    flex-shrink: 0;
+}
+
+.rec-content {
+    flex: 1;
+}
+
+.rec-content h4 {
+    font-size: 18px;
+    font-weight: 700;
+    color: #1a202c;
+    margin-bottom: 8px;
+}
+
+.rec-content p {
+    font-size: 14px;
+    color: #6b7280;
+    line-height: 1.6;
+    margin-bottom: 12px;
+}
+
+.btn-sm {
+    padding: 8px 16px;
+    font-size: 14px;
+}
+
+/* Mobile Responsive for Candidate Analytics */
+@media (max-width: 768px) {
+    .profile-strength {
+        flex-direction: column;
+        text-align: center;
+    }
+    
+    .skills-grid {
+        grid-template-columns: 1fr;
+    }
+    
+    .recommendation-card {
+        flex-direction: column;
+        text-align: center;
+    }
+    
+    .rec-icon {
+        margin: 0 auto;
+    }
+}
