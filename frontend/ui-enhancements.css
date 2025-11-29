@@ -1,0 +1,626 @@
+/**
+ * Modern UI Enhancements
+ * Loading skeletons, empty states, micro-interactions, and animations
+ */
+
+/* ==================== LOADING SKELETONS ==================== */
+
+.skeleton {
+    background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+    background-size: 200% 100%;
+    animation: skeleton-loading 1.5s ease-in-out infinite;
+    border-radius: 8px;
+}
+
+@keyframes skeleton-loading {
+    0% { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+}
+
+.skeleton-card {
+    background: white;
+    padding: 24px;
+    border-radius: 16px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    margin-bottom: 16px;
+}
+
+.skeleton-header {
+    height: 24px;
+    width: 60%;
+    margin-bottom: 16px;
+}
+
+.skeleton-text {
+    height: 16px;
+    margin-bottom: 12px;
+}
+
+.skeleton-text.short {
+    width: 40%;
+}
+
+.skeleton-text.medium {
+    width: 70%;
+}
+
+.skeleton-text.long {
+    width: 90%;
+}
+
+.skeleton-avatar {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+}
+
+.skeleton-button {
+    height: 44px;
+    width: 120px;
+    border-radius: 12px;
+}
+
+.skeleton-table-row {
+    display: flex;
+    gap: 16px;
+    padding: 16px;
+    border-bottom: 1px solid #e2e8f0;
+}
+
+.skeleton-table-cell {
+    height: 20px;
+    flex: 1;
+}
+
+/* ==================== EMPTY STATES ==================== */
+
+.empty-state {
+    text-align: center;
+    padding: 80px 40px;
+    color: #718096;
+}
+
+.empty-state-icon {
+    font-size: 80px;
+    margin-bottom: 24px;
+    opacity: 0.5;
+    animation: float 3s ease-in-out infinite;
+}
+
+@keyframes float {
+    0%, 100% { transform: translateY(0px); }
+    50% { transform: translateY(-10px); }
+}
+
+.empty-state-title {
+    font-size: 24px;
+    font-weight: 700;
+    color: #2d3748;
+    margin-bottom: 12px;
+}
+
+.empty-state-description {
+    font-size: 16px;
+    color: #718096;
+    margin-bottom: 32px;
+    max-width: 500px;
+    margin-left: auto;
+    margin-right: auto;
+}
+
+.empty-state-action {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 14px 28px;
+    background: linear-gradient(135deg, #4F46E5 0%, #7c3aed 100%);
+    color: white;
+    border: none;
+    border-radius: 12px;
+    font-weight: 600;
+    font-size: 16px;
+    cursor: pointer;
+    transition: all 0.3s;
+    text-decoration: none;
+}
+
+.empty-state-action:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 16px rgba(79, 70, 229, 0.3);
+}
+
+/* ==================== MICRO-INTERACTIONS ==================== */
+
+.btn-hover-lift {
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.btn-hover-lift:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 16px rgba(0, 0, 0, 0.15);
+}
+
+.btn-hover-lift:active {
+    transform: translateY(0);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.card-interactive {
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    cursor: pointer;
+}
+
+.card-interactive:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 12px 24px rgba(0, 0, 0, 0.15);
+}
+
+.ripple {
+    position: relative;
+    overflow: hidden;
+}
+
+.ripple::after {
+    content: "";
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 0;
+    height: 0;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.5);
+    transform: translate(-50%, -50%);
+    transition: width 0.6s, height 0.6s;
+}
+
+.ripple:active::after {
+    width: 300px;
+    height: 300px;
+}
+
+.scale-on-hover {
+    transition: transform 0.3s;
+}
+
+.scale-on-hover:hover {
+    transform: scale(1.05);
+}
+
+.rotate-on-hover {
+    transition: transform 0.3s;
+}
+
+.rotate-on-hover:hover {
+    transform: rotate(5deg);
+}
+
+/* ==================== ENHANCED NOTIFICATIONS ==================== */
+
+.toast-notification {
+    position: fixed;
+    top: 24px;
+    right: 24px;
+    min-width: 320px;
+    max-width: 480px;
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+    padding: 16px 20px;
+    display: flex;
+    align-items: start;
+    gap: 12px;
+    z-index: 10000;
+    animation: toast-slide-in 0.3s ease-out;
+    transform-origin: right top;
+}
+
+@keyframes toast-slide-in {
+    from {
+        opacity: 0;
+        transform: translateX(100%) scale(0.8);
+    }
+    to {
+        opacity: 1;
+        transform: translateX(0) scale(1);
+    }
+}
+
+.toast-notification.removing {
+    animation: toast-slide-out 0.3s ease-in forwards;
+}
+
+@keyframes toast-slide-out {
+    to {
+        opacity: 0;
+        transform: translateX(100%) scale(0.8);
+    }
+}
+
+.toast-icon {
+    font-size: 24px;
+    flex-shrink: 0;
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 8px;
+}
+
+.toast-notification.success .toast-icon {
+    background: #d1fae5;
+    color: #065f46;
+}
+
+.toast-notification.error .toast-icon {
+    background: #fee2e2;
+    color: #991b1b;
+}
+
+.toast-notification.warning .toast-icon {
+    background: #fef3c7;
+    color: #78350f;
+}
+
+.toast-notification.info .toast-icon {
+    background: #dbeafe;
+    color: #1e40af;
+}
+
+.toast-content {
+    flex: 1;
+}
+
+.toast-title {
+    font-weight: 600;
+    font-size: 14px;
+    color: #1a202c;
+    margin-bottom: 4px;
+}
+
+.toast-message {
+    font-size: 14px;
+    color: #718096;
+    line-height: 1.4;
+}
+
+.toast-close {
+    background: none;
+    border: none;
+    color: #718096;
+    font-size: 20px;
+    cursor: pointer;
+    padding: 0;
+    width: 24px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 4px;
+    transition: all 0.2s;
+    flex-shrink: 0;
+}
+
+.toast-close:hover {
+    background: #f7fafc;
+    color: #2d3748;
+}
+
+.toast-progress {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+    background: rgba(0, 0, 0, 0.1);
+    border-radius: 0 0 12px 12px;
+    overflow: hidden;
+}
+
+.toast-progress-bar {
+    height: 100%;
+    animation: toast-progress-animation 5s linear forwards;
+}
+
+.toast-notification.success .toast-progress-bar {
+    background: #10b981;
+}
+
+.toast-notification.error .toast-progress-bar {
+    background: #ef4444;
+}
+
+.toast-notification.warning .toast-progress-bar {
+    background: #f59e0b;
+}
+
+.toast-notification.info .toast-progress-bar {
+    background: #3b82f6;
+}
+
+@keyframes toast-progress-animation {
+    from { width: 100%; }
+    to { width: 0%; }
+}
+
+/* Toast Container */
+.toast-container {
+    position: fixed;
+    top: 24px;
+    right: 24px;
+    z-index: 10000;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    pointer-events: none;
+}
+
+.toast-container .toast-notification {
+    pointer-events: all;
+    position: relative;
+    top: auto;
+    right: auto;
+}
+
+/* ==================== ACCESSIBILITY IMPROVEMENTS ==================== */
+
+/* Focus Visible */
+*:focus-visible {
+    outline: 3px solid #4F46E5;
+    outline-offset: 2px;
+    border-radius: 4px;
+}
+
+button:focus-visible,
+a:focus-visible {
+    outline: 3px solid #4F46E5;
+    outline-offset: 2px;
+}
+
+/* Skip to Main Content */
+.skip-to-main {
+    position: absolute;
+    top: -100px;
+    left: 0;
+    background: #4F46E5;
+    color: white;
+    padding: 12px 24px;
+    text-decoration: none;
+    font-weight: 600;
+    z-index: 10001;
+    border-radius: 0 0 8px 0;
+    transition: top 0.3s;
+}
+
+.skip-to-main:focus {
+    top: 0;
+}
+
+/* Screen Reader Only */
+.sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border-width: 0;
+}
+
+/* Keyboard Navigation Hints */
+.keyboard-hint {
+    font-size: 12px;
+    color: #718096;
+    margin-left: 8px;
+    padding: 2px 6px;
+    background: #f7fafc;
+    border-radius: 4px;
+    font-family: monospace;
+}
+
+/* ==================== LOADING STATES ==================== */
+
+.loading-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.5);
+    backdrop-filter: blur(4px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 9999;
+    animation: fade-in 0.2s;
+}
+
+@keyframes fade-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+.spinner {
+    width: 48px;
+    height: 48px;
+    border: 4px solid rgba(255, 255, 255, 0.3);
+    border-top-color: white;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+.spinner-small {
+    width: 20px;
+    height: 20px;
+    border-width: 2px;
+}
+
+.spinner-large {
+    width: 64px;
+    height: 64px;
+    border-width: 6px;
+}
+
+.dots-loading {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+.dots-loading span {
+    width: 12px;
+    height: 12px;
+    background: #4F46E5;
+    border-radius: 50%;
+    animation: dots-bounce 1.4s ease-in-out infinite;
+}
+
+.dots-loading span:nth-child(1) { animation-delay: -0.32s; }
+.dots-loading span:nth-child(2) { animation-delay: -0.16s; }
+
+@keyframes dots-bounce {
+    0%, 80%, 100% {
+        transform: scale(0);
+        opacity: 0.5;
+    }
+    40% {
+        transform: scale(1);
+        opacity: 1;
+    }
+}
+
+/* ==================== SMOOTH TRANSITIONS ==================== */
+
+.smooth-appear {
+    animation: smooth-appear 0.4s ease-out;
+}
+
+@keyframes smooth-appear {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.fade-in {
+    animation: fade-in 0.3s ease-out;
+}
+
+.scale-in {
+    animation: scale-in 0.3s ease-out;
+}
+
+@keyframes scale-in {
+    from {
+        opacity: 0;
+        transform: scale(0.9);
+    }
+    to {
+        opacity: 1;
+        transform: scale(1);
+    }
+}
+
+/* ==================== BADGE ANIMATIONS ==================== */
+
+.badge-pulse {
+    animation: badge-pulse 2s ease-in-out infinite;
+}
+
+@keyframes badge-pulse {
+    0%, 100% {
+        box-shadow: 0 0 0 0 rgba(79, 70, 229, 0.7);
+    }
+    50% {
+        box-shadow: 0 0 0 10px rgba(79, 70, 229, 0);
+    }
+}
+
+/* ==================== PROGRESS INDICATORS ==================== */
+
+.progress-bar-animated {
+    position: relative;
+    overflow: hidden;
+}
+
+.progress-bar-animated::after {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    right: 0;
+    background: linear-gradient(
+        90deg,
+        transparent,
+        rgba(255, 255, 255, 0.3),
+        transparent
+    );
+    animation: progress-shine 1.5s infinite;
+}
+
+@keyframes progress-shine {
+    0% { transform: translateX(-100%); }
+    100% { transform: translateX(100%); }
+}
+
+/* ==================== RESPONSIVE IMPROVEMENTS ==================== */
+
+@media (max-width: 768px) {
+    .toast-notification {
+        left: 16px;
+        right: 16px;
+        min-width: auto;
+    }
+    
+    .toast-container {
+        left: 16px;
+        right: 16px;
+        width: auto;
+    }
+    
+    .empty-state {
+        padding: 60px 24px;
+    }
+    
+    .empty-state-icon {
+        font-size: 60px;
+    }
+}
+
+/* ==================== DARK MODE SUPPORT (Optional) ==================== */
+
+@media (prefers-color-scheme: dark) {
+    .skeleton {
+        background: linear-gradient(90deg, #2d3748 25%, #4a5568 50%, #2d3748 75%);
+    }
+    
+    .toast-notification {
+        background: #2d3748;
+        color: #e2e8f0;
+    }
+    
+    .toast-title {
+        color: #f7fafc;
+    }
+}
+
+/* ==================== PRINT STYLES ==================== */
+
+@media print {
+    .toast-notification,
+    .loading-overlay,
+    .skeleton {
+        display: none !important;
+    }
+}
