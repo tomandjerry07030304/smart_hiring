@@ -301,32 +301,160 @@ function getStatusColor(status) {
 
 async function loadCandidateAssessments() {
     const container = document.getElementById('candidateAssessments');
-    container.innerHTML = `
-        <div class="content-header">
-            <h2>📝 Skill Assessments</h2>
-        </div>
-        <div class="card">
-            <h3>Why Take Assessments?</h3>
-            <p>Complete skill assessments to showcase your capabilities. Higher scores increase your chances of getting matched with relevant job opportunities!</p>
-            <div class="stats-grid">
-                <div class="stat-card">
-                    <div class="stat-icon">✅</div>
-                    <div class="stat-content">
-                        <div class="stat-label">Completed</div>
-                        <div class="stat-value">0</div>
+    container.innerHTML = '<div class="loading">Loading assessments...</div>';
+    
+    try {
+        const response = await fetch(`${API_URL}/assessments/quizzes`, {
+            headers: { 'Authorization': `Bearer ${authToken}` }
+        });
+        
+        if (!response.ok) {
+            throw new Error('Failed to load assessments');
+        }
+        
+        const data = await response.json();
+        const quizzes = data.quizzes || [];
+        
+        // Get quiz attempts to show completed quizzes
+        const attemptsResponse = await fetch(`${API_URL}/assessments/my-attempts`, {
+            headers: { 'Authorization': `Bearer ${authToken}` }
+        });
+        
+        const attemptsData = attemptsResponse.ok ? await attemptsResponse.json() : { attempts: [] };
+        const attempts = attemptsData.attempts || [];
+        
+        // Calculate stats
+        const completedCount = attempts.filter(a => a.status === 'completed').length;
+        const avgScore = completedCount > 0 ? 
+            Math.round(attempts.filter(a => a.status === 'completed').reduce((sum, a) => sum + (a.score || 0), 0) / completedCount) : 
+            0;
+        
+        container.innerHTML = `
+            <div class="content-header">
+                <h2>📝 Skill Assessments</h2>
+            </div>
+            <div class="card">
+                <h3>Why Take Assessments?</h3>
+                <p>Complete skill assessments to showcase your capabilities. Higher scores increase your chances of getting matched with relevant job opportunities!</p>
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-icon">✅</div>
+                        <div class="stat-content">
+                            <div class="stat-label">Completed</div>
+                            <div class="stat-value">${completedCount}</div>
+                        </div>
                     </div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-icon">📊</div>
-                    <div class="stat-content">
-                        <div class="stat-label">Average Score</div>
-                        <div class="stat-value">-</div>
+                    <div class="stat-card">
+                        <div class="stat-icon">📊</div>
+                        <div class="stat-content">
+                            <div class="stat-label">Average Score</div>
+                            <div class="stat-value">${completedCount > 0 ? avgScore + '%' : '-'}</div>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon">📝</div>
+                        <div class="stat-content">
+                            <div class="stat-label">Available</div>
+                            <div class="stat-value">${quizzes.length}</div>
+                        </div>
                     </div>
                 </div>
             </div>
-            <p class="empty-state">No assessments available yet. Check back soon!</p>
-        </div>
-    `;
+            
+            ${quizzes.length > 0 ? `
+                <div class="card">
+                    <h3>📋 Available Assessments</h3>
+                    <div class="jobs-grid">
+                        ${quizzes.map(quiz => {
+                            const attempt = attempts.find(a => a.quiz_id === quiz._id);
+                            const isCompleted = attempt && attempt.status === 'completed';
+                            const score = isCompleted ? attempt.score : null;
+                            
+                            return `
+                                <div class="job-card">
+                                    <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 12px;">
+                                        <h3 style="margin: 0;">${quiz.title}</h3>
+                                        ${isCompleted ? `<span class="tag" style="background: #10b981; color: white;">✓ Completed</span>` : 
+                                                       `<span class="tag" style="background: #3b82f6; color: white;">Available</span>`}
+                                    </div>
+                                    <p style="color: #64748b; margin-bottom: 16px;">${quiz.description || 'Test your skills'}</p>
+                                    <div style="display: flex; gap: 16px; margin-bottom: 16px; flex-wrap: wrap;">
+                                        <span>⏱️ ${quiz.duration_minutes} minutes</span>
+                                        <span>❓ ${quiz.questions?.length || 0} questions</span>
+                                        <span>🎯 ${quiz.passing_score || 70}% to pass</span>
+                                    </div>
+                                    ${isCompleted ? `
+                                        <div class="alert ${score >= (quiz.passing_score || 70) ? 'alert-success' : 'alert-warning'}" style="margin-bottom: 16px;">
+                                            ${score >= (quiz.passing_score || 70) ? '✓' : '⚠️'} Your Score: ${score}% 
+                                            ${score >= (quiz.passing_score || 70) ? '(Passed)' : '(Did not pass)'}
+                                        </div>
+                                    ` : ''}
+                                    <button class="btn ${isCompleted ? 'btn-secondary' : 'btn-primary'}" 
+                                            onclick="${isCompleted ? `viewQuizResults('${quiz._id}')` : `startQuiz('${quiz._id}')`}">
+                                        ${isCompleted ? '📊 View Results' : '▶️ Start Assessment'}
+                                    </button>
+                                </div>
+                            `;
+                        }).join('')}
+                    </div>
+                </div>
+            ` : `
+                <div class="card">
+                    <div class="empty-state">
+                        <div style="font-size: 64px; margin-bottom: 16px;">📝</div>
+                        <h3>No Assessments Available Yet</h3>
+                        <p>Assessments become available when you apply to jobs that require skill testing.</p>
+                        <p style="color: #64748b;">Apply to jobs with assessment requirements to see them here!</p>
+                    </div>
+                </div>
+            `}
+        `;
+    } catch (error) {
+        console.error('Failed to load assessments:', error);
+        container.innerHTML = `
+            <div class="content-header">
+                <h2>📝 Skill Assessments</h2>
+            </div>
+            <div class="card">
+                <div class="alert alert-error">
+                    Failed to load assessments. Please try again later.
+                </div>
+            </div>
+        `;
+    }
+}
+
+async function startQuiz(quizId) {
+    if (!confirm('Are you ready to start this assessment? The timer will begin immediately.')) {
+        return;
+    }
+    
+    try {
+        const response = await fetch(`${API_URL}/assessments/quizzes/${quizId}/start`, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${authToken}`,
+                'Content-Type': 'application/json'
+            }
+        });
+        
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.error || 'Failed to start quiz');
+        }
+        
+        const data = await response.json();
+        showNotification('✓ Assessment started! Good luck!', 'success');
+        // Reload to show quiz interface
+        loadCandidateAssessments();
+    } catch (error) {
+        console.error('Start quiz error:', error);
+        showNotification('Failed to start assessment: ' + error.message, 'error');
+    }
+}
+
+async function viewQuizResults(quizId) {
+    showNotification('Quiz results viewing coming soon!', 'info');
 }
 
 async function loadCandidateProfile() {
@@ -494,7 +622,27 @@ function editProfile() {
                     
                     <div class="form-group">
                         <label>Phone Number</label>
-                        <input type="tel" name="phone" value="${currentPhone}" placeholder="+1 (555) 123-4567">
+                        <div style="display: flex; gap: 8px;">
+                            <select name="country_code" style="width: 140px;">
+                                <option value="+1">🇺🇸 +1 (US)</option>
+                                <option value="+44">🇬🇧 +44 (UK)</option>
+                                <option value="+91">🇮🇳 +91 (India)</option>
+                                <option value="+61">🇦🇺 +61 (Australia)</option>
+                                <option value="+81">🇯🇵 +81 (Japan)</option>
+                                <option value="+86">🇨🇳 +86 (China)</option>
+                                <option value="+49">🇩🇪 +49 (Germany)</option>
+                                <option value="+33">🇫🇷 +33 (France)</option>
+                                <option value="+39">🇮🇹 +39 (Italy)</option>
+                                <option value="+34">🇪🇸 +34 (Spain)</option>
+                                <option value="+7">🇷🇺 +7 (Russia)</option>
+                                <option value="+55">🇧🇷 +55 (Brazil)</option>
+                                <option value="+52">🇲🇽 +52 (Mexico)</option>
+                                <option value="+27">🇿🇦 +27 (S. Africa)</option>
+                                <option value="+82">🇰🇷 +82 (S. Korea)</option>
+                                <option value="+65">🇸🇬 +65 (Singapore)</option>
+                            </select>
+                            <input type="tel" name="phone" value="${currentPhone}" placeholder="1234567890" style="flex: 1;">
+                        </div>
                     </div>
                     
                     <div class="form-group">
@@ -565,8 +713,9 @@ async function submitProfileEdit(e) {
             : [];
         
         const profileData = {
-            first_name: formData.get('firstName'),
-            last_name: formData.get('lastName'),
+            first_name: formData.get('first_name'),
+            last_name: formData.get('last_name'),
+            country_code: formData.get('country_code'),
             phone: formData.get('phone'),
             skills: skills,
             experience: parseFloat(formData.get('experience')) || 0,
@@ -776,14 +925,20 @@ async function submitResume() {
         
         if (response.ok) {
             const data = await response.json();
-            showNotification(`✓ Resume uploaded successfully! Found ${data.skills_count || 0} skills.`, 'success');
+            
+            if (data.skills_count > 0) {
+                showNotification(`✓ Resume uploaded successfully! Found ${data.skills_count} skills: ${data.skills_found.slice(0, 5).join(', ')}${data.skills_count > 5 ? '...' : ''}`, 'success');
+            } else {
+                showNotification('✓ Resume uploaded successfully! No technical skills detected. Please add skills manually in your profile.', 'warning');
+            }
             
             // Close modal after short delay
             setTimeout(() => {
-                document.querySelector('.modal').remove();
-                // Refresh profile to show updated resume
+                const modal = document.querySelector('.modal');
+                if (modal) modal.remove();
+                // Refresh profile to show updated resume and skills
                 loadCandidateProfile();
-            }, 1500);
+            }, 2000);
         } else {
             const error = await response.json();
             throw new Error(error.error || 'Failed to upload resume');

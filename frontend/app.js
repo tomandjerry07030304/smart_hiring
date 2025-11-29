@@ -173,8 +173,28 @@ function initializeApp() {
                             <input type="email" id="regEmail" required>
                         </div>
                         <div class="form-group">
-                            <label>Phone</label>
-                            <input type="tel" id="regPhone">
+                            <label>Phone Number</label>
+                            <div style="display: flex; gap: 8px;">
+                                <select id="regCountryCode" style="width: 140px;">
+                                    <option value="+1">🇺🇸 +1 (US)</option>
+                                    <option value="+44">🇬🇧 +44 (UK)</option>
+                                    <option value="+91" selected>🇮🇳 +91 (India)</option>
+                                    <option value="+61">🇦🇺 +61 (Australia)</option>
+                                    <option value="+81">🇯🇵 +81 (Japan)</option>
+                                    <option value="+86">🇨🇳 +86 (China)</option>
+                                    <option value="+49">🇩🇪 +49 (Germany)</option>
+                                    <option value="+33">🇫🇷 +33 (France)</option>
+                                    <option value="+39">🇮🇹 +39 (Italy)</option>
+                                    <option value="+34">🇪🇸 +34 (Spain)</option>
+                                    <option value="+7">🇷🇺 +7 (Russia)</option>
+                                    <option value="+55">🇧🇷 +55 (Brazil)</option>
+                                    <option value="+52">🇲🇽 +52 (Mexico)</option>
+                                    <option value="+27">🇿🇦 +27 (S. Africa)</option>
+                                    <option value="+82">🇰🇷 +82 (S. Korea)</option>
+                                    <option value="+65">🇸🇬 +65 (Singapore)</option>
+                                </select>
+                                <input type="tel" id="regPhone" placeholder="1234567890" style="flex: 1;">
+                            </div>
                         </div>
                         <div class="form-group company-only" style="display: none;">
                             <label>Company Name *</label>
