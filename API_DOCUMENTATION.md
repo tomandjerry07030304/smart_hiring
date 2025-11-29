@@ -1,19 +1,50 @@
-# Smart Hiring System - API Documentation
+# 📋 API Documentation
 
-## Base URL
-```
-http://localhost:5000/api
+Complete API reference for Smart Hiring System v2.0
+
+## 🌐 Base URL
+
+- **Production**: `https://my-project-smart-hiring.onrender.com/api`
+- **Local**: `http://localhost:5000/api`
+
+## 🔐 Authentication
+
+All protected endpoints require JWT token:
+```http
+Authorization: Bearer <your-jwt-token>
 ```
 
-## Authentication
-All protected endpoints require JWT token in Authorization header:
-```
-Authorization: Bearer <access_token>
-```
+## 📌 Endpoints Summary
+
+| Category | Endpoint | Method | Auth | Description |
+|----------|----------|--------|------|-------------|
+| **Auth** | `/auth/register` | POST | ❌ | Register new user |
+| **Auth** | `/auth/login` | POST | ❌ | Login and get token |
+| **Auth** | `/auth/profile` | GET | ✅ | Get user profile |
+| **Jobs** | `/jobs/create` | POST | ✅ | Create job (Company/Admin) |
+| **Jobs** | `/jobs/list` | GET | ✅ | List all jobs |
+| **Jobs** | `/jobs/<id>` | GET | ✅ | Get job details |
+| **Jobs** | `/jobs/<id>` | PUT | ✅ | Update job (Owner/Admin) |
+| **Jobs** | `/jobs/<id>` | DELETE | ✅ | Delete job (Owner/Admin) |
+| **Applications** | `/candidates/apply` | POST | ✅ | Apply to job (Candidate) |
+| **Applications** | `/candidates/applications` | GET | ✅ | Get my applications |
+| **Applications** | `/candidates/applications/<id>/status` | PUT | ✅ | Update status (Recruiter) |
+| **Assessments** | `/assessments/questions` | POST | ✅ | Create question (Recruiter) |
+| **Assessments** | `/assessments/questions` | GET | ✅ | List questions |
+| **Assessments** | `/assessments/questions/<id>` | DELETE | ✅ | Delete question |
+| **Assessments** | `/assessments/quizzes` | POST | ✅ | Create quiz (Recruiter) |
+| **Assessments** | `/assessments/quizzes` | GET | ✅ | List quizzes |
+| **Assessments** | `/assessments/quizzes/<id>` | GET | ✅ | Get quiz details |
+| **Assessments** | `/assessments/quizzes/<id>/start` | POST | ✅ | Start quiz (Candidate) |
+| **Assessments** | `/assessments/attempts/<id>/submit` | POST | ✅ | Submit quiz answers |
+| **Assessments** | `/assessments/attempts/<id>` | GET | ✅ | Get quiz results |
+| **Assessments** | `/assessments/quizzes/<id>/analytics` | GET | ✅ | Quiz analytics (Recruiter) |
+| **Email** | `/email/preferences` | GET | ✅ | Get email preferences |
+| **Email** | `/email/preferences` | PUT | ✅ | Update preferences |
 
 ---
 
-## 1. Authentication Endpoints
+## 🔑 Authentication Endpoints
 
 ### Register User
 ```http
@@ -22,23 +53,19 @@ Content-Type: application/json
 
 {
   "email": "user@example.com",
-  "password": "password123",
-  "full_name": "John Doe",
-  "role": "candidate",  // or "recruiter"
-  "phone": "+1234567890",
-  "linkedin_url": "https://linkedin.com/in/johndoe"
+  "password": "secure_password",
+  "role": "candidate",
+  "name": "John Doe"
 }
+```
 
-Response: 201 Created
+**Roles**: `candidate`, `company`, `admin`
+
+**Response (201)**:
+```json
 {
   "message": "User registered successfully",
-  "user_id": "abc123",
-  "access_token": "eyJ0eXAiOiJKV1QiLCJhbGc...",
-  "user": {
-    "email": "user@example.com",
-    "full_name": "John Doe",
-    "role": "candidate"
-  }
+  "user_id": "507f1f77bcf86cd799439011"
 }
 ```
 
@@ -49,334 +76,272 @@ Content-Type: application/json
 
 {
   "email": "user@example.com",
-  "password": "password123"
-}
-
-Response: 200 OK
-{
-  "message": "Login successful",
-  "access_token": "eyJ0eXAiOiJKV1QiLCJhbGc...",
-  "user": {
-    "user_id": "abc123",
-    "email": "user@example.com",
-    "full_name": "John Doe",
-    "role": "candidate"
-  }
+  "password": "secure_password"
 }
 ```
 
-### Get Profile
-```http
-GET /api/auth/profile
-Authorization: Bearer <token>
-
-Response: 200 OK
+**Response (200)**:
+```json
 {
-  "email": "user@example.com",
-  "full_name": "John Doe",
-  "role": "candidate",
-  "profile_completed": true
+  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "user": {
+    "id": "507f1f77bcf86cd799439011",
+    "email": "user@example.com",
+    "role": "candidate",
+    "name": "John Doe"
+  }
 }
 ```
 
 ---
 
-## 2. Job Endpoints
+## 💼 Job Endpoints
 
-### Create Job (Recruiter only)
+### Create Job
 ```http
 POST /api/jobs/create
 Authorization: Bearer <token>
 Content-Type: application/json
 
 {
-  "title": "Senior Python Developer",
-  "description": "Looking for experienced Python developer...",
-  "company_name": "Tech Corp",
+  "title": "Senior Software Engineer",
+  "description": "We are looking for...",
+  "requirements": "5+ years experience...",
+  "required_skills": ["Python", "Flask", "MongoDB"],
   "location": "Remote",
-  "job_type": "Full-time",
-  "required_skills": ["python", "django", "rest api"],
-  "experience_required": 3,
-  "salary_range": {
-    "min": 80000,
-    "max": 120000,
-    "currency": "USD"
-  }
+  "salary_range": "$100k - $150k"
 }
+```
 
-Response: 201 Created
+**Response (201)**:
+```json
 {
   "message": "Job created successfully",
-  "job_id": "job123",
-  "required_skills": ["python", "django", "rest api"]
+  "job_id": "507f1f77bcf86cd799439011"
 }
 ```
 
 ### List Jobs
 ```http
-GET /api/jobs/list?status=open&limit=50&skip=0
-
-Response: 200 OK
-{
-  "jobs": [...],
-  "count": 10,
-  "total": 50
-}
-```
-
-### Get Job Details
-```http
-GET /api/jobs/{job_id}
-
-Response: 200 OK
-{
-  "_id": "job123",
-  "title": "Senior Python Developer",
-  "description": "...",
-  "required_skills": ["python", "django"]
-}
-```
-
----
-
-## 3. Candidate Endpoints
-
-### Upload Resume
-```http
-POST /api/candidates/upload-resume
+GET /api/jobs/list?status=open
 Authorization: Bearer <token>
-Content-Type: multipart/form-data
-
-Form Data:
-- resume: <file> (PDF, DOCX, TXT)
-- experience: <JSON string> (optional)
-
-Example experience JSON:
-[
-  {
-    "company": "Tech Corp",
-    "title": "Software Engineer",
-    "start_date": "2020-01-01",
-    "end_date": "2022-12-31"
-  }
-]
-
-Response: 200 OK
-{
-  "message": "Resume uploaded successfully",
-  "skills_found": ["python", "sql", "react"],
-  "skills_count": 15,
-  "cci": {
-    "cci_score": 75.5,
-    "interpretation": "Good - Stable with consistent growth"
-  }
-}
 ```
 
-### Apply to Job
-```http
-POST /api/candidates/apply/{job_id}
-Authorization: Bearer <token>
-
-Response: 201 Created
+**Response (200)**:
+```json
 {
-  "message": "Application submitted successfully",
-  "application_id": "app123",
-  "score": 78.5,
-  "decision": "Review",
-  "matched_skills": ["python", "django"],
-  "recommendations": [
-    "Improve skills in: kubernetes, docker"
+  "jobs": [
+    {
+      "id": "507f1f77bcf86cd799439011",
+      "title": "Senior Software Engineer",
+      "required_skills": ["Python", "Flask"],
+      "location": "Remote",
+      "status": "open",
+      "applications_count": 15
+    }
   ]
 }
 ```
 
-### Get My Applications
-```http
-GET /api/candidates/applications
-Authorization: Bearer <token>
-
-Response: 200 OK
-{
-  "applications": [
-    {
-      "_id": "app123",
-      "job_id": "job123",
-      "job_title": "Senior Python Developer",
-      "overall_score": 78.5,
-      "decision": "Review",
-      "status": "submitted"
-    }
-  ],
-  "count": 5
-}
-```
-
 ---
 
-## 4. Assessment Endpoints
+## 📝 Assessment Endpoints
 
-### Create Assessment (Recruiter only)
+### Create Question
 ```http
-POST /api/assessments/create
+POST /api/assessments/questions
 Authorization: Bearer <token>
 Content-Type: application/json
 
 {
-  "job_id": "job123",
-  "title": "Python Technical Assessment",
-  "assessment_type": "mcq",
-  "duration_minutes": 45,
+  "question_text": "What is polymorphism?",
+  "question_type": "multiple_choice",
+  "options": ["A", "B", "C", "D"],
+  "correct_answer": "B",
+  "points": 10,
+  "difficulty": "medium",
+  "category": "OOP"
+}
+```
+
+**Question Types**: `multiple_choice`, `true_false`, `short_answer`
+
+**Response (201)**:
+```json
+{
+  "message": "Question created successfully",
+  "question_id": "507f1f77bcf86cd799439013"
+}
+```
+
+### Create Quiz
+```http
+POST /api/assessments/quizzes
+Authorization: Bearer <token>
+Content-Type: application/json
+
+{
+  "title": "Python Developer Assessment",
+  "description": "Test your skills",
+  "question_ids": ["id1", "id2", "id3"],
+  "duration": 30,
   "passing_score": 70,
-  "questions": [
-    {
-      "question": "What is a decorator in Python?",
-      "options": ["A", "B", "C", "D"],
-      "correct_answer": "A"
-    }
-  ]
-}
-
-Response: 201 Created
-{
-  "message": "Assessment created successfully",
-  "assessment_id": "assess123"
+  "randomize_questions": true,
+  "max_attempts": 3
 }
 ```
 
-### Submit Assessment
+**Response (201)**:
+```json
+{
+  "message": "Quiz created successfully",
+  "quiz_id": "507f1f77bcf86cd799439014",
+  "total_points": 50
+}
+```
+
+### Start Quiz
 ```http
-POST /api/assessments/{assessment_id}/submit
+POST /api/assessments/quizzes/<quiz_id>/start
+Authorization: Bearer <token>
+```
+
+**Response (200)**:
+```json
+{
+  "message": "Quiz started successfully",
+  "attempt_id": "507f1f77bcf86cd799439015",
+  "quiz": {
+    "title": "Python Developer Assessment",
+    "questions": [...],
+    "duration": 30
+  },
+  "expires_at": "2025-01-16T11:30:00Z"
+}
+```
+
+### Submit Quiz
+```http
+POST /api/assessments/attempts/<attempt_id>/submit
 Authorization: Bearer <token>
 Content-Type: application/json
 
 {
-  "application_id": "app123",
-  "answers": ["A", "B", "C"],
-  "started_at": "2025-01-01T10:00:00Z",
-  "time_taken_minutes": 30
-}
-
-Response: 201 Created
-{
-  "message": "Assessment submitted successfully",
-  "score": 2,
-  "percentage": 66.67,
-  "passed": false
+  "answers": {
+    "question_id_1": "selected_answer",
+    "question_id_2": "true"
+  },
+  "time_spent": {
+    "question_id_1": 45,
+    "question_id_2": 30
+  }
 }
 ```
 
-### Schedule Interview (Recruiter only)
-```http
-POST /api/assessments/schedule-interview
-Authorization: Bearer <token>
-Content-Type: application/json
-
+**Response (200)**:
+```json
 {
-  "application_id": "app123",
-  "job_id": "job123",
-  "candidate_id": "cand123",
-  "interview_type": "technical",
-  "scheduled_time": "2025-01-15T14:00:00Z",
-  "duration_minutes": 60,
-  "meeting_link": "https://meet.google.com/xyz"
+  "message": "Quiz submitted successfully",
+  "score": 45,
+  "total_points": 50,
+  "percentage": 90,
+  "passed": true,
+  "feedback": {...}
 }
+```
 
-Response: 201 Created
+### Get Quiz Analytics
+```http
+GET /api/assessments/quizzes/<quiz_id>/analytics
+Authorization: Bearer <token>
+```
+
+**Response (200)**:
+```json
 {
-  "message": "Interview scheduled successfully",
-  "interview_id": "int123"
+  "quiz_title": "Python Developer Assessment",
+  "total_attempts": 25,
+  "average_score": 42.5,
+  "pass_rate": 91.3,
+  "average_time_minutes": 27,
+  "question_analytics": [...]
 }
 ```
 
 ---
 
-## 5. Dashboard & Analytics
+## 📧 Email Preference Endpoints
 
-### Get Analytics (Recruiter only)
+### Get Preferences
 ```http
-GET /api/dashboard/analytics
+GET /api/email/preferences
 Authorization: Bearer <token>
+```
 
-Response: 200 OK
+**Response (200)**:
+```json
 {
-  "summary": {
-    "total_jobs": 10,
-    "total_applications": 150,
-    "avg_score": 65.3,
-    "applications_last_30_days": 45
-  },
-  "applications_by_status": {
-    "submitted": 80,
-    "screening": 40,
-    "shortlisted": 20,
-    "rejected": 10
-  },
-  "top_skills": [
-    {"skill": "python", "count": 25},
-    {"skill": "javascript", "count": 20}
-  ]
+  "preferences": {
+    "new_job_alerts": true,
+    "newsletter": false,
+    "marketing": true
+  }
 }
 ```
 
-### Get Fairness Audit (Recruiter only)
+### Update Preferences
 ```http
-GET /api/dashboard/fairness/{job_id}
+PUT /api/email/preferences
 Authorization: Bearer <token>
+Content-Type: application/json
 
-Response: 200 OK
 {
-  "job_id": "job123",
-  "total_applications": 100,
-  "fairness_score": 85,
-  "fairness_badge": {
-    "badge": "Good Fairness",
-    "color": "lightgreen",
-    "level": "A"
-  },
-  "overall_bias_detected": false,
-  "analyses": {
-    "gender": {
-      "demographic_parity_difference": 0.05,
-      "bias_detected": false
-    }
-  },
-  "summary_recommendations": [
-    "Continue monitoring hiring outcomes for fairness"
-  ]
+  "new_job_alerts": true,
+  "newsletter": false,
+  "marketing": true
 }
 ```
 
-### Get Transparency Report
-```http
-GET /api/dashboard/transparency/{application_id}
-Authorization: Bearer <token>
-
-Response: 200 OK
+**Response (200)**:
+```json
 {
-  "application_id": "app123",
-  "job_title": "Senior Python Developer",
-  "decision": "Review",
-  "scoring_breakdown": {
-    "resume_match": 0.65,
-    "skill_match": 0.70,
-    "cci_score": 75.5,
-    "overall_score": 78.5
-  },
-  "matched_skills": ["python", "django"],
-  "missing_skills": ["kubernetes", "docker"],
-  "decision_rationale": "Moderate match with score of 78.5%...",
-  "improvement_suggestions": [
-    "Develop skills in: kubernetes, docker"
-  ]
+  "message": "Email preferences updated successfully"
 }
 ```
 
 ---
 
-## Error Responses
+## 📋 Application Status Management
 
-All endpoints may return these error codes:
+### Update Application Status
+```http
+PUT /api/candidates/applications/<application_id>/status
+Authorization: Bearer <token>
+Content-Type: application/json
+
+{
+  "status": "interview_scheduled",
+  "notes": "Interview on Monday at 10 AM"
+}
+```
+
+**Status Values**: 
+- `applied`
+- `under_review`
+- `interview_scheduled`
+- `rejected`
+- `accepted`
+
+**Response (200)**:
+```json
+{
+  "message": "Application status updated successfully"
+}
+```
+
+---
+
+## ⚠️ Error Responses
 
 ### 400 Bad Request
 ```json
@@ -388,63 +353,66 @@ All endpoints may return these error codes:
 ### 401 Unauthorized
 ```json
 {
-  "error": "Invalid credentials"
+  "error": "Invalid or expired token"
 }
 ```
 
 ### 403 Forbidden
 ```json
 {
-  "error": "Only recruiters can create job postings"
+  "error": "You don't have permission"
 }
 ```
 
 ### 404 Not Found
 ```json
 {
-  "error": "Job not found"
+  "error": "Resource not found"
 }
 ```
 
-### 409 Conflict
+### 500 Server Error
 ```json
 {
-  "error": "Email already registered"
-}
-```
-
-### 500 Internal Server Error
-```json
-{
-  "error": "Internal server error"
+  "error": "An unexpected error occurred"
 }
 ```
 
 ---
 
-## Testing with curl
+## 🧪 Testing with curl
 
-### Example: Register and Login
+### Register
 ```bash
-# Register
-curl -X POST http://localhost:5000/api/auth/register \
+curl -X POST https://my-project-smart-hiring.onrender.com/api/auth/register \
   -H "Content-Type: application/json" \
-  -d '{
-    "email": "test@example.com",
-    "password": "password123",
-    "full_name": "Test User",
-    "role": "candidate"
-  }'
+  -d '{"email":"test@example.com","password":"test123","role":"candidate","name":"Test User"}'
+```
 
-# Login
-curl -X POST http://localhost:5000/api/auth/login \
+### Login
+```bash
+curl -X POST https://my-project-smart-hiring.onrender.com/api/auth/login \
   -H "Content-Type: application/json" \
-  -d '{
-    "email": "test@example.com",
-    "password": "password123"
-  }'
+  -d '{"email":"test@example.com","password":"test123"}'
+```
 
-# Use token in subsequent requests
-curl -X GET http://localhost:5000/api/auth/profile \
+### List Jobs (with token)
+```bash
+curl https://my-project-smart-hiring.onrender.com/api/jobs/list \
   -H "Authorization: Bearer YOUR_TOKEN_HERE"
 ```
+
+---
+
+## 📊 Rate Limits
+
+- **Limit**: 100 requests/minute per IP
+- **Headers**:
+  - `X-RateLimit-Limit`: Total allowed
+  - `X-RateLimit-Remaining`: Remaining requests
+  - `X-RateLimit-Reset`: Reset timestamp
+
+---
+
+**Last Updated**: January 2025  
+**Version**: 2.0.0

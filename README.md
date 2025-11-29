@@ -1,252 +1,317 @@
 # 🎯 Smart Hiring System
 
-**AI-Powered Fair Recruitment Platform** - Proprietary Software
+A comprehensive full-stack web application for managing job postings, candidate applications, assessments, and hiring workflows.
 
-[![Python](https://img.shields.io/badge/Python-3.11-blue.svg)](https://www.python.org/)
-[![Flask](https://img.shields.io/badge/Flask-3.0-green.svg)](https://flask.palletsprojects.com/)
-[![MongoDB Atlas](https://img.shields.io/badge/Database-MongoDB%20Atlas-green.svg)](https://www.mongodb.com/)
-[![License](https://img.shields.io/badge/License-Proprietary-red.svg)](LICENSE)
+![Python](https://img.shields.io/badge/Python-3.13-blue)
+![Flask](https://img.shields.io/badge/Flask-3.0-green)
+![MongoDB](https://img.shields.io/badge/MongoDB-Atlas-success)
+![Live](https://img.shields.io/badge/Status-Live-success)
 
----
+**🌐 Live Demo**: https://my-project-smart-hiring.onrender.com
 
-## 🔒 **PROPRIETARY SOFTWARE - PRIVATE REPOSITORY**
+## 🌟 Features
 
-**⚠️ IMPORTANT NOTICE:**
-- This software is **PROPRIETARY and CONFIDENTIAL**
-- All rights reserved © 2025 Smart Hiring System
-- **NO UNAUTHORIZED USE, COPYING, OR DISTRIBUTION**
-- Access restricted to authorized developers only
-- Requires explicit written permission for any use
-- See [LICENSE](LICENSE) file for complete terms
+### 👥 User Management
+- **Multi-role System**: Admin, Company/Recruiter, and Candidate roles
+- **Secure Authentication**: JWT-based authentication with bcrypt password hashing
+- **Profile Management**: Comprehensive user profiles with resume uploads
 
-**For authorization requests, contact:**
-- Primary: mightyazad@gmail.com
-- Alternative: admin@smarthiring.com
+### 💼 Job Management
+- **Job Posting**: Create and manage job listings with detailed requirements
+- **Application Tracking**: Real-time status management (Applied, Under Review, Interview Scheduled, Rejected, Accepted)
+- **Advanced Filtering**: Search jobs by title, skills, location
 
----
+### 📝 Assessment System (NEW!)
+- **Question Bank**: Manage question pools by category and difficulty
+- **Quiz Builder**: Create custom quizzes with configurable settings
+- **Timed Assessments**: Countdown timer with auto-submit
+- **Auto-Grading**: Automatic scoring for MCQ, true/false, short answer
+- **Analytics**: Comprehensive performance analytics for recruiters
 
-## 🚀 Development Status
+### 📧 Email Notifications (NEW!)
+- **Transactional**: Welcome, confirmations, status updates
+- **Marketing**: Job alerts, newsletters (opt-in/opt-out)
+- **Preferences**: User-controlled notification settings
+- **SendGrid Integration**: Professional email templates
 
-**Current Phase:** Active Development (Private)
+### 🎨 Modern UI/UX (NEW!)
+- **Loading States**: Skeleton screens with shimmer animations
+- **Empty States**: Friendly designs with action prompts
+- **Toast Notifications**: 4 types (success/error/warning/info)
+- **Micro-interactions**: Hover effects, ripples, transitions
+- **Accessibility**: WCAG compliant with keyboard navigation
+- **Dark Mode**: System preference detection
 
-### 💼 **Job Management**
-- ✅ Post & manage job openings
-- ✅ Job description with required skills
-- ✅ Location, type, salary range
-- ✅ Application deadline tracking
+## 🏗️ Architecture
 
-### 👤 **Candidate Features**
-- ✅ Resume upload (text format)
-- ✅ PII anonymization (removes emails, phones, gender)
-- ✅ Skill extraction & matching
-- ✅ Job application tracking
+### Backend
+- **Framework**: Flask 3.0
+- **Language**: Python 3.13
+- **Database**: MongoDB Atlas
+- **Auth**: JWT (Flask-JWT-Extended)
+- **Email**: SendGrid API
+- **Security**: bcrypt password hashing
 
-### 🏢 **Company Dashboard**
-- ✅ Post unlimited jobs
-- ✅ View applicants
-- ✅ Basic candidate screening
+### Frontend
+- **Stack**: HTML5, CSS3, Vanilla JavaScript
+- **Design**: Custom CSS with modern design system
+- **Icons**: Unicode + custom SVG
 
-### 📊 **Smart Features** (Simplified)
-- ✅ Skill-based matching
-- ✅ Resume anonymization
-- ✅ Basic scoring algorithm
-- ⚠️ Advanced ML features disabled (deployment size constraints)
+### Deployment
+- **Platform**: Render.com
+- **CI/CD**: Auto-deploy from GitHub
+- **URL**: https://my-project-smart-hiring.onrender.com
 
----
+## 📂 Project Structure
 
-## 🛠️ Tech Stack
+```
+smart-hiring-system/
+├── backend/
+│   ├── models/
+│   │   └── assessment.py          # Quiz models
+│   ├── routes/
+│   │   ├── auth_routes.py         # Authentication
+│   │   ├── job_routes.py          # Job management
+│   │   ├── candidate_routes.py    # Applications
+│   │   ├── company_routes.py      # Recruiter features
+│   │   ├── assessment_routes.py   # Quizzes (NEW)
+│   │   └── email_routes.py        # Email prefs (NEW)
+│   ├── email_service.py           # SendGrid (NEW)
+│   ├── app.py                     # Flask app
+│   └── requirements.txt
+├── frontend/
+│   ├── index.html                 # Main entry
+│   ├── questions.html             # Question bank (NEW)
+│   ├── quizzes.html               # Quiz management (NEW)
+│   ├── take-quiz.html             # Quiz interface (NEW)
+│   ├── email-preferences.html     # Email settings (NEW)
+│   ├── styles.css                 # Main styles
+│   ├── ui-enhancements.css        # Modern UI (NEW)
+│   ├── ui-utils.js                # UI utilities (NEW)
+│   ├── ui-enhancements.js         # Enhancement layer (NEW)
+│   ├── app.js                     # Main logic
+│   ├── candidate.js
+│   ├── company.js
+│   └── admin.js
+└── README.md
+```
 
-**Backend:**
-- Python 3.11
-- Flask 3.0
-- MongoDB Atlas (Cloud Database)
-- JWT Authentication
-- Gunicorn (Production Server)
-
-**Frontend:**
-- Vanilla JavaScript
-- HTML5/CSS3
-- Responsive Design
-
-**Deployment:**
-- Render.com (Backend)
-- MongoDB Atlas (Database)
-- GitHub (Version Control)
-
----
-
-## 📦 Installation & Local Setup
+## 🚀 Quick Start
 
 ### Prerequisites
-- Python 3.11+
-- MongoDB (or use MongoDB Atlas)
+- Python 3.13+
+- MongoDB Atlas account
+- SendGrid account
 - Git
 
-### Quick Start
+### Installation
 
 ```bash
 # Clone repository
 git clone https://github.com/SatyaSwaminadhYedida03/my-project-s1.git
-cd smart-hiring-system
+cd my-project-s1/smart-hiring-system
 
 # Create virtual environment
-python -m venv .venv
-.venv\Scripts\activate  # Windows
-source .venv/bin/activate  # Mac/Linux
+python -m venv venv
+venv\Scripts\activate  # Windows
+# source venv/bin/activate  # macOS/Linux
 
 # Install dependencies
+cd backend
 pip install -r requirements.txt
 
-# Set environment variables
-cp .env.example .env
-# Edit .env with your MongoDB URI and secrets
+# Configure environment
+# Create .env file with:
+MONGO_URI=mongodb+srv://username:password@cluster.mongodb.net/
+JWT_SECRET_KEY=your-secret-key
+SENDGRID_API_KEY=your-sendgrid-key
+SENDGRID_FROM_EMAIL=noreply@yourdomain.com
 
-# Run locally
+# Run application
 python app.py
+
+# Access at http://localhost:5000
 ```
 
-Access at: http://localhost:5000
-
----
-
-## 🔧 Environment Variables
-
-Create a `.env` file with:
-
-```env
-# Database
-MONGODB_URI=mongodb+srv://user:password@cluster.mongodb.net/smart_hiring_db
-
-# Security
-SECRET_KEY=your-secret-key-here
-JWT_SECRET_KEY=your-jwt-secret-here
-
-# Environment
-FLASK_ENV=development  # or 'production'
-```
-
-> ⚠️ **Never commit `.env` files to git!**
-
----
-
-## 🚀 Deployment
-
-### Deploy to Render.com
-
-1. Fork this repository
-2. Create account on [Render.com](https://render.com)
-3. Create new Web Service
-4. Connect your GitHub repository
-5. Set environment variables
-6. Deploy!
-
-**Environment Variables to Set:**
-- `MONGODB_URI`
-- `SECRET_KEY`
-- `JWT_SECRET_KEY`
-- `FLASK_ENV=production`
-
----
-
-## 📚 API Endpoints
+## 📚 API Documentation
 
 ### Authentication
-```
-POST /api/auth/register  - Register new user
-POST /api/auth/login     - User login
-GET  /api/auth/profile   - Get user profile
+```http
+POST /api/auth/register
+POST /api/auth/login
+GET  /api/auth/profile
 ```
 
 ### Jobs
-```
-POST /api/jobs/create    - Create job (Company/Admin only)
-GET  /api/jobs/list      - List all jobs
-GET  /api/jobs/<id>      - Get job details
-```
-
-### Candidates
-```
-POST /api/candidates/upload-resume  - Upload resume
-POST /api/candidates/apply          - Apply to job
-GET  /api/candidates/applications   - View applications
+```http
+POST /api/jobs/create
+GET  /api/jobs/list
+GET  /api/jobs/<id>
+PUT  /api/jobs/<id>
+DELETE /api/jobs/<id>
 ```
 
-### Health Check
+### Applications
+```http
+POST /api/candidates/apply
+GET  /api/candidates/applications
+PUT  /api/candidates/applications/<id>/status
 ```
-GET /api/health - System status
+
+### Assessments (NEW)
+```http
+POST /api/assessments/questions
+GET  /api/assessments/questions
+POST /api/assessments/quizzes
+GET  /api/assessments/quizzes
+POST /api/assessments/quizzes/<id>/start
+POST /api/assessments/attempts/<id>/submit
+GET  /api/assessments/attempts/<id>
+GET  /api/assessments/quizzes/<id>/analytics
 ```
 
----
+### Email (NEW)
+```http
+GET  /api/email/preferences
+PUT  /api/email/preferences
+```
 
-## 🎯 Current Limitations
+## 🎨 Design System
 
-**Due to deployment size constraints, the following are disabled:**
+### Colors
+- **Primary**: #4F46E5 (Indigo)
+- **Secondary**: #7c3aed (Purple)
+- **Success**: #10b981
+- **Error**: #ef4444
+- **Warning**: #f59e0b
 
-- ❌ PDF/DOCX resume parsing (use text format)
-- ❌ Advanced ML matching (scikit-learn removed)
-- ❌ Automated assessments (ML dependencies removed)
-- ❌ Dashboard analytics (pandas removed)
+### Typography
+- **Font**: System fonts (-apple-system, Segoe UI, Roboto)
+- **Base Size**: 16px
 
-**Workaround:** These can be re-enabled by:
-1. Deploying ML as separate microservice, OR
-2. Using paid hosting tier with more resources, OR
-3. Building desktop application with local processing
+### Spacing
+- 4px, 8px, 12px, 16px, 24px, 32px, 48px, 64px
 
----
+## 📖 User Guide
 
-## 🔮 Roadmap
+### For Candidates
+1. Register with email and password
+2. Browse jobs in "Browse Jobs" tab
+3. Apply to jobs with one click
+4. Take assessments when assigned
+5. Track application status
+6. Manage email preferences
 
-- [ ] AI Interviewer Integration (OpenAI GPT-4)
-- [ ] Re-enable ML features (separate microservice)
-- [ ] Email notifications (SMTP)
-- [ ] Advanced analytics dashboard
-- [ ] Video interview integration
-- [ ] Skills assessment library
-- [ ] Desktop application (Electron)
-- [ ] Mobile app (React Native)
+### For Recruiters
+1. Create company account
+2. Post jobs with requirements
+3. Create question bank
+4. Build quizzes for assessments
+5. Review applications
+6. Update application status
+7. View quiz analytics
 
----
+## 🔒 Security
+
+- bcrypt password hashing
+- JWT token authentication
+- CORS protection
+- Input validation
+- MongoDB query parameterization
+- HTTPS enforced in production
+- Environment variable protection
+
+## 🌐 Deployment
+
+### Render.com
+1. Connect GitHub repository
+2. Set build command: `cd backend && pip install -r requirements.txt`
+3. Set start command: `cd backend && gunicorn app:app`
+4. Add environment variables
+5. Deploy (auto-deploy on push to main)
+
+## 📝 Environment Variables
+
+| Variable | Description |
+|----------|-------------|
+| `MONGO_URI` | MongoDB connection string |
+| `JWT_SECRET_KEY` | JWT secret for tokens |
+| `SENDGRID_API_KEY` | SendGrid API key |
+| `SENDGRID_FROM_EMAIL` | Sender email address |
+
+## 🧪 Testing
+
+### Test Accounts
+```
+Admin:
+Email: admin@test.com
+Password: admin123
+
+Company:
+Email: company@test.com
+Password: company123
+
+Candidate:
+Email: candidate@test.com
+Password: candidate123
+```
+
+### Manual Test Checklist
+- [x] User registration (all roles)
+- [x] Login/authentication
+- [x] Job posting creation
+- [x] Job application submission
+- [x] Application status updates
+- [x] Quiz creation & taking
+- [x] Auto-grading accuracy
+- [x] Email notifications
+- [x] Email preferences
+- [x] Profile updates
+- [x] Responsive design
+- [x] Accessibility features
+- [x] Dark mode
+
+## 🚀 Recent Updates
+
+### v2.0.0 (Current)
+- ✨ Complete assessment/quiz system with 11 endpoints
+- ✨ Email notification system with SendGrid
+- ✨ Application status management
+- ✨ Modern UI with loading/empty states
+- ✨ Toast notifications
+- ✨ Accessibility improvements
+- ✨ Dark mode support
+- 🐛 Fixed JWT authentication issues
+- 🎨 Enhanced responsive design
 
 ## 🤝 Contributing
 
-This is currently a demo/portfolio project. For collaboration:
-
-1. Fork the repository
+1. Fork repository
 2. Create feature branch
 3. Commit changes
 4. Push to branch
 5. Open Pull Request
 
----
-
 ## 📄 License
 
-MIT License - See [LICENSE](LICENSE) file
+MIT License - See LICENSE file
 
----
-
-## 👨‍💻 Developer
+## 👨‍💻 Author
 
 **Satya Swaminadh Yedida**
 - GitHub: [@SatyaSwaminadhYedida03](https://github.com/SatyaSwaminadhYedida03)
+- Repository: [my-project-s1](https://github.com/SatyaSwaminadhYedida03/my-project-s1)
+
+## 🙏 Acknowledgments
+
+- Flask & Python community
+- MongoDB Atlas
+- Render.com
+- SendGrid
+- Open-source contributors
 
 ---
 
-## 📞 Support
-
-For issues or questions:
-- Open an issue on GitHub
-- Email: [Your Email]
-
----
-
-## ⚡ Quick Links
-
-- [Live Demo](https://smart-hiring-k1pb.onrender.com)
-- [API Documentation](API_DOCUMENTATION.md)
-- [Deployment Guide](docs/DEPLOYMENT_GUIDE.md)
-- [MongoDB Atlas](https://www.mongodb.com/cloud/atlas)
-
----
+**Built with ❤️ using Flask, MongoDB, and Modern Web Technologies**
 
 **⭐ Star this repo if you find it useful!**
