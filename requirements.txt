@@ -30,6 +30,9 @@ psutil==5.9.6
 # Monitoring & Observability
 sentry-sdk==1.39.2
 
+# Data analysis (used by dashboard routes)
+pandas==2.2.3
+
 # Testing
 pytest==7.4.3
 pytest-flask==1.3.0
