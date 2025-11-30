@@ -2,7 +2,12 @@ from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from datetime import datetime, timedelta
 from bson import ObjectId
-import pandas as pd
+try:
+    import pandas as pd
+    _HAS_PANDAS = True
+except Exception:
+    pd = None
+    _HAS_PANDAS = False
 
 from backend.models.database import get_db
 from backend.services.fairness_service import generate_fairness_report, get_fairness_badge
