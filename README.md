@@ -43,6 +43,15 @@ A comprehensive, production-ready full-stack web application for managing job po
 - ✅ **Analytics Dashboards** - Company & Candidate performance metrics
 - ✅ **Enterprise UI** - World-class interface matching LinkedIn/Workday
 
+### ♿ Accessibility & Compliance
+- ✅ **WCAG 2.1 Level AA** - Full compliance with web accessibility standards
+- ✅ **Keyboard Navigation** - 100% keyboard accessible with skip links
+- ✅ **Screen Reader Support** - Proper ARIA labels and semantic HTML
+- ✅ **Color Contrast** - Minimum 4.5:1 ratio for normal text
+- ✅ **Motion Settings** - Respects prefers-reduced-motion
+- ✅ **Touch Targets** - Minimum 44x44px (WCAG AAA)
+- ✅ **Accessibility Audit Tool** - Built-in axe-core dashboard
+
 ---
 
 ## 🌟 Core Features
@@ -382,8 +391,66 @@ Password: test123
 - [x] Email preferences
 - [x] Profile updates
 - [x] Responsive design
-- [x] Accessibility features
+- [x] Accessibility features (WCAG 2.1 AA)
 - [x] Dark mode
+
+## ♿ Accessibility
+
+This application is **WCAG 2.1 Level AA compliant**, ensuring equal access for all users including those with disabilities.
+
+### Key Accessibility Features
+
+#### Keyboard Navigation
+- ✅ All interactive elements accessible via Tab
+- ✅ Skip-to-content links on every page
+- ✅ Arrow key navigation for lists and menus
+- ✅ Escape key closes modals/dropdowns
+- ✅ Keyboard shortcuts (Ctrl/Cmd + / to view all)
+
+#### Screen Reader Support
+- ✅ Proper ARIA labels and roles
+- ✅ Live regions for dynamic content
+- ✅ Semantic HTML (h1-h6 hierarchy)
+- ✅ Alt text for all images
+- ✅ Form labels properly associated
+
+#### Visual Accessibility
+- ✅ High contrast colors (4.5:1 minimum)
+- ✅ Visible focus indicators (3px outline)
+- ✅ Color is not sole means of information
+- ✅ Text resizable to 200% without loss
+- ✅ Large touch targets (44x44px)
+
+#### Motion & Preference Support
+- ✅ Respects `prefers-reduced-motion` setting
+- ✅ Animations can be disabled
+- ✅ High contrast mode support
+
+### Testing Accessibility
+
+1. **Automated Audit**: Open `frontend/accessibility-audit.html` in browser
+   - Scans all pages with axe-core
+   - Categorizes issues by severity
+   - Provides fix recommendations
+
+2. **Manual Testing**:
+   - Keyboard-only navigation test
+   - Screen reader test (NVDA/JAWS/VoiceOver)
+   - Color contrast verification
+   - Mobile responsiveness check
+
+3. **CI/CD Integration** (Optional):
+   ```bash
+   npm install --save-dev @axe-core/cli
+   npx axe http://localhost:5000 --tags wcag2a,wcag2aa
+   ```
+
+### Documentation
+- Full accessibility guide: `ACCESSIBILITY_GUIDE.md`
+- Accessible stylesheet: `frontend/a11y.css`
+- Utility functions: `frontend/a11y.js`
+
+---
 
 ## 🚀 Recent Updates
 
