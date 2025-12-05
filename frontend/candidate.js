@@ -1012,29 +1012,32 @@ async function loadCandidateAnalytics() {
     
     try {
         // Fetch candidate data
-        const [appsRes, profileRes, jobsRes] = await Promise.all([
-            fetch(`${API_URL}/applications/my-applications`, {
+        const [appsRes, profileRes] = await Promise.all([
+            fetch(`${API_URL}/candidates/applications`, {
                 headers: { 'Authorization': `Bearer ${authToken}` }
             }),
             fetch(`${API_URL}/candidates/profile`, {
                 headers: { 'Authorization': `Bearer ${authToken}` }
-            }),
-            fetch(`${API_URL}/jobs`, {
-                headers: { 'Authorization': `Bearer ${authToken}` }
             })
         ]);
         
-        const applications = await appsRes.json();
-        const profile = await profileRes.json();
-        const allJobs = await jobsRes.json();
+        if (!appsRes.ok || !profileRes.ok) {
+            throw new Error('Failed to load analytics data');
+        }
+        
+        const appsData = await appsRes.json();
+        const profileData = await profileRes.json();
+        
+        const applications = appsData.applications || [];
+        const profile = profileData.candidate || {};
         
         // Calculate metrics
         const totalApps = applications.length;
         const shortlisted = applications.filter(a => a.status === 'shortlisted').length;
-        const interviewed = applications.filter(a => a.status === 'interviewed').length;
+        const interviewed = applications.filter(a => a.status === 'interviewed' || a.status === 'interview').length;
         const hired = applications.filter(a => a.status === 'hired').length;
         const rejected = applications.filter(a => a.status === 'rejected').length;
-        const pending = applications.filter(a => a.status === 'applied').length;
+        const pending = applications.filter(a => a.status === 'applied' || a.status === 'pending' || a.status === 'submitted').length;
         
         // Success rates
         const shortlistRate = totalApps > 0 ? ((shortlisted / totalApps) * 100).toFixed(1) : 0;

@@ -312,7 +312,12 @@ def get_my_applications():
             job = jobs_collection.find_one({'_id': ObjectId(app['job_id'])})
             if job:
                 app['job_title'] = job['title']
-                app['company_name'] = job.get('company_name', '')
+                app['company_name'] = job.get('company_name', 'Company')
+                app['location'] = job.get('location', 'Remote')
+            
+            # Convert applied_date to applied_at for frontend compatibility
+            if 'applied_date' in app:
+                app['applied_at'] = app['applied_date']
         
         return jsonify({
             'applications': applications,
