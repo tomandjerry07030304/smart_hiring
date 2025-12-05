@@ -1,6 +1,22 @@
 // Company Dashboard Module
 function loadCompanyDashboard() {
+    console.log('Loading Company Dashboard...', currentUser);
+    
+    // Ensure currentUser is available
+    if (!currentUser) {
+        console.error('No current user found');
+        logout();
+        return;
+    }
+    
     const dashboard = document.getElementById('companyDashboard');
+    if (!dashboard) {
+        console.error('Company dashboard element not found');
+        return;
+    }
+    
+    const userEmail = currentUser.email || currentUser.full_name || 'User';
+    
     dashboard.innerHTML = `
         <nav class="navbar">
             <div class="navbar-brand">
@@ -20,7 +36,7 @@ function loadCompanyDashboard() {
                 <button class="nav-link" onclick="switchCompanyTab('audit')">🛡️ Fairness Audit</button>
             </div>
             <div class="navbar-actions">
-                <span class="user-info">${currentUser.email}</span>
+                <span class="user-info">${userEmail}</span>
                 <button class="btn btn-secondary" onclick="companyLogout()">Logout</button>
             </div>
         </nav>
@@ -38,10 +54,29 @@ function loadCompanyDashboard() {
 }
 
 function switchCompanyTab(tab) {
+    console.log('Switching to company tab:', tab);
     document.querySelectorAll('#companyDashboard .nav-link').forEach(l => l.classList.remove('active'));
     document.querySelectorAll('#companyDashboard .tab-content').forEach(t => t.classList.remove('active'));
     
-    event.target.classList.add('active');
+    if (event && event.target) {
+        event.target.classList.add('active');
+    }
+    
+    // Show the corresponding tab content
+    const tabMap = {
+        'overview': 'companyOverview',
+        'jobs': 'companyJobs',
+        'candidates': 'companyCandidates',
+        'applications': 'companyApplications',
+        'analytics': 'companyAnalytics',
+        'audit': 'companyAudit'
+    };
+    
+    const tabElement = document.getElementById(tabMap[tab]);
+    if (tabElement) {
+        tabElement.classList.add('active');
+    }
+    
     switch(tab) {
         case 'overview': loadCompanyOverview(); break;
         case 'jobs': loadCompanyJobs(); break;
@@ -53,7 +88,13 @@ function switchCompanyTab(tab) {
 }
 
 async function loadCompanyOverview() {
+    console.log('Loading company overview...');
     const container = document.getElementById('companyOverview');
+    if (!container) {
+        console.error('Company overview container not found');
+        return;
+    }
+    
     container.innerHTML = '<div class="loading">Loading dashboard...</div>';
     
     try {
