@@ -220,32 +220,58 @@ def get_company_applications():
         db = get_db()
         jobs_collection = db['jobs']
         applications_collection = db['applications']
+        users_collection = db['users']
         
         # Get all job IDs for this recruiter
         recruiter_jobs = list(jobs_collection.find(
             {'recruiter_id': user_id},
-            {'_id': 1, 'title': 1}
+            {'_id': 1, 'title': 1, 'company_name': 1}
         ))
         
         if not recruiter_jobs:
             return jsonify({'applications': [], 'count': 0}), 200
             
-        # Create a map of job_id to job_title for enrichment
-        job_map = {str(job['_id']): job['title'] for job in recruiter_jobs}
+        # Create a map of job_id to job info for enrichment
+        job_map = {str(job['_id']): {'title': job['title'], 'company_name': job.get('company_name', '')} for job in recruiter_jobs}
         job_ids = list(job_map.keys())
         
         # Get applications for these jobs
         applications = list(applications_collection.find(
             {'job_id': {'$in': job_ids}}
-        ).sort('applied_at', -1))
+        ).sort('applied_date', -1))
         
-        # Enrich applications with job titles and convert ObjectIds
+        # Enrich applications with job and candidate information
         for app in applications:
             app['_id'] = str(app['_id'])
-            app['job_title'] = job_map.get(app['job_id'], 'Unknown Job')
-            # Ensure dates are strings
-            if 'applied_at' in app:
+            job_info = job_map.get(app['job_id'], {})
+            app['job_title'] = job_info.get('title', 'Unknown Job')
+            app['company_name'] = job_info.get('company_name', '')
+            
+            # Get candidate information
+            candidate_id = app.get('candidate_id')
+            if candidate_id:
+                candidate_user = users_collection.find_one({'_id': ObjectId(candidate_id)})
+                if candidate_user:
+                    app['candidate_name'] = candidate_user.get('full_name', 'Unknown')
+                    app['candidate_email'] = candidate_user.get('email', '')
+                else:
+                    app['candidate_name'] = 'Unknown'
+                    app['candidate_email'] = ''
+            else:
+                app['candidate_name'] = 'Unknown'
+                app['candidate_email'] = ''
+            
+            # Ensure dates are properly formatted
+            if 'applied_date' in app:
+                app['applied_at'] = app['applied_date'].isoformat() if hasattr(app['applied_date'], 'isoformat') else str(app['applied_date'])
+            elif 'applied_at' in app:
                 app['applied_at'] = app['applied_at'].isoformat() if hasattr(app['applied_at'], 'isoformat') else str(app['applied_at'])
+            else:
+                app['applied_at'] = datetime.utcnow().isoformat()
+            
+            # Ensure score fields exist
+            if 'overall_score' not in app:
+                app['overall_score'] = 0
         
         return jsonify({
             'applications': applications,

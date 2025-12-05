@@ -953,12 +953,80 @@ async function viewJobCandidates(jobId) {
     }
 }
 
-function viewApplicationDetails(appId) {
-    showNotification('Application details view coming soon!', 'info');
+async function viewApplicationDetails(appId) {
+    try {
+        const response = await fetch(`${API_URL}/company/applications/${appId}/history`, {
+            headers: { 'Authorization': `Bearer ${authToken}` }
+        });
+        
+        if (!response.ok) {
+            throw new Error('Failed to load application details');
+        }
+        
+        const data = await response.json();
+        
+        // Show modal with application details
+        const modal = document.createElement('div');
+        modal.className = 'modal show';
+        modal.innerHTML = `
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3>Application Details</h3>
+                    <button class="modal-close" onclick="this.closest('.modal').remove()">×</button>
+                </div>
+                <div class="modal-body">
+                    <div class="application-details">
+                        <h4>Status History</h4>
+                        ${data.status_history && data.status_history.length > 0 ? `
+                            <div class="status-timeline">
+                                ${data.status_history.map(h => `
+                                    <div class="timeline-item">
+                                        <div class="timeline-icon">${getStatusIcon(h.status)}</div>
+                                        <div class="timeline-content">
+                                            <div class="timeline-status">${h.status}</div>
+                                            <div class="timeline-date">${new Date(h.changed_at).toLocaleString()}</div>
+                                            ${h.note ? `<div class="timeline-note">${h.note}</div>` : ''}
+                                        </div>
+                                    </div>
+                                `).join('')}
+                            </div>
+                        ` : '<p>No status history available</p>'}
+                    </div>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(modal);
+    } catch (error) {
+        console.error('Error loading application details:', error);
+        showNotification('Failed to load application details: ' + error.message, 'error');
+    }
 }
 
-function downloadResume(appId) {
-    showNotification('Resume download coming soon!', 'info');
+async function downloadResume(appId) {
+    try {
+        const response = await fetch(`${API_URL}/candidates/resume/${appId}`, {
+            headers: { 'Authorization': `Bearer ${authToken}` }
+        });
+        
+        if (!response.ok) {
+            throw new Error('Resume not available');
+        }
+        
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `resume_${appId}.pdf`;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+        
+        showNotification('✓ Resume downloaded successfully', 'success');
+    } catch (error) {
+        console.error('Error downloading resume:', error);
+        showNotification('Resume download not available yet. Feature coming soon!', 'info');
+    }
 }
 
 function companyLogout() {
@@ -984,13 +1052,19 @@ async function loadCompanyAnalytics() {
             fetch(`${API_URL}/jobs/company`, {
                 headers: { 'Authorization': `Bearer ${authToken}` }
             }),
-            fetch(`${API_URL}/applications/company`, {
+            fetch(`${API_URL}/jobs/company/applications`, {
                 headers: { 'Authorization': `Bearer ${authToken}` }
             })
         ]);
         
-        const jobs = await jobsRes.json();
-        const applications = await appsRes.json();
+        if (!jobsRes.ok || !appsRes.ok) {
+            throw new Error('Failed to fetch analytics data');
+        }
+        
+        const jobsData = await jobsRes.json();
+        const appsData = await appsRes.json();
+        const jobs = jobsData.jobs || [];
+        const applications = appsData.applications || [];
         
         // Calculate metrics
         const totalJobs = jobs.length;
@@ -1000,7 +1074,7 @@ async function loadCompanyAnalytics() {
         const interviewed = applications.filter(a => a.status === 'interviewed').length;
         const hired = applications.filter(a => a.status === 'hired').length;
         const rejected = applications.filter(a => a.status === 'rejected').length;
-        const pending = applications.filter(a => a.status === 'applied').length;
+        const pending = applications.filter(a => a.status === 'pending' || a.status === 'submitted').length;
         
         // Conversion rates
         const shortlistRate = totalApps > 0 ? ((shortlisted / totalApps) * 100).toFixed(1) : 0;
