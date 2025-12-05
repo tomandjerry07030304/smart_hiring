@@ -5,7 +5,7 @@ Validates candidate career history through LinkedIn API and calculates social pr
 
 import os
 import requests
-from typing import Dict, Optional, List
+from typing import Dict, Optional, List, Tuple
 from datetime import datetime, timedelta
 import re
 from requests_oauthlib import OAuth2Session
