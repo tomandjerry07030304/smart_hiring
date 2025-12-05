@@ -100,8 +100,6 @@ app.register_blueprint(ai_interview_routes.bp, url_prefix='/api/ai-interview')
 if V2_ROUTES_AVAILABLE:
     app.register_blueprint(ai_interview_routes_v2.bp, url_prefix='/api/ai-interview-v2')
     print("✅ Enhanced V2 routes registered: LinkedIn integration, dynamic questions, fresher scoring")
-app.register_blueprint(dashboard_routes.bp, url_prefix='/api/dashboard')
-app.register_blueprint(ai_interview_routes.bp, url_prefix='/api/ai-interview')
 
 # Initialize monitoring & observability
 initialize_monitoring(app)
