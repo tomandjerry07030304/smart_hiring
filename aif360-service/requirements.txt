@@ -1,0 +1,46 @@
+# ============================================================================
+# ENTERPRISE FAIRNESS API - REQUIREMENTS
+# AIF360-powered bias detection for production deployment
+# ============================================================================
+
+# Core Framework
+fastapi==0.115.6
+uvicorn[standard]==0.34.0
+gunicorn==23.0.0
+pydantic==2.10.5
+pydantic-settings==2.7.1
+
+# AIF360 and Dependencies
+# WARNING: AIF360 requires system packages on Linux:
+#   - libblas-dev
+#   - liblapack-dev
+#   - gfortran
+# These must be installed via apt-get in Dockerfile
+aif360==0.6.1
+
+# AIF360 Core Dependencies (explicit versions for stability)
+numpy==1.26.4
+pandas==2.2.3
+scikit-learn==1.5.2
+scipy==1.14.1
+matplotlib==3.9.4
+
+# Optional: AIF360 Extensions (comment out if not needed to reduce size)
+# tensorflow==2.18.0  # For adversarial debiasing (~500MB)
+# fairlearn==0.11.0   # For reduction algorithms
+# torch==2.5.1        # For inFairness algorithms (~1GB)
+
+# Monitoring & Logging
+prometheus-client==0.21.1
+python-json-logger==3.2.1
+
+# Optional: Enhanced features
+# python-multipart==0.0.20  # For file uploads
+# aiofiles==24.1.0          # For async file handling
+# openpyxl==3.1.5           # For Excel reports
+# reportlab==4.2.5          # For PDF generation
+
+# Development/Testing (comment out for production)
+pytest==8.3.4
+pytest-asyncio==0.24.0
+httpx==0.28.1

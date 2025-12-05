@@ -1,0 +1,9 @@
+# Force Railway to use Dockerfile instead of detecting Python
+[phases.setup]
+nixPkgs = []
+
+[phases.build]
+cmds = ["echo 'Using Dockerfile'"]
+
+[start]
+cmd = "gunicorn app.main:app --workers 2 --worker-class uvicorn.workers.UvicornWorker --bind 0.0.0.0:${PORT} --timeout 120 --access-logfile - --error-logfile -"

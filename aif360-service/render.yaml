@@ -1,0 +1,91 @@
+# ============================================================================
+# RENDER.COM DEPLOYMENT CONFIGURATION
+# Enterprise-grade AIF360 Fairness API
+# ============================================================================
+
+services:
+  # Web Service Configuration
+  - type: web
+    name: aif360-fairness-api
+    runtime: docker
+    
+    # Repository settings
+    repo: https://github.com/YOUR_USERNAME/YOUR_REPO  # UPDATE THIS
+    branch: main
+    
+    # Docker configuration
+    dockerfilePath: ./Dockerfile
+    dockerContext: ./
+    
+    # Service plan (REQUIRED: Free tier cannot install system packages)
+    # Minimum: Starter ($7/month) for 1GB RAM + system package installation
+    plan: starter  # Options: starter, standard, pro
+    
+    # Region (choose closest to your users)
+    region: oregon  # Options: oregon, frankfurt, singapore, ohio
+    
+    # Environment variables
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.11"
+      
+      - key: LOG_LEVEL
+        value: "info"
+      
+      - key: WORKERS
+        value: "2"  # Gunicorn workers (adjust based on plan)
+      
+      # Optional: Sentry error tracking
+      # - key: SENTRY_DSN
+      #   value: "https://your-sentry-dsn"
+      #   sync: false
+      
+      # Optional: Database connection
+      # - key: MONGODB_URI
+      #   value: "mongodb+srv://..."
+      #   sync: false
+    
+    # Scaling configuration
+    scaling:
+      minInstances: 1
+      maxInstances: 3  # Auto-scale based on traffic
+      targetMemoryPercent: 80
+      targetCPUPercent: 80
+    
+    # Health check
+    healthCheckPath: /health
+    
+    # Build configuration
+    buildCommand: echo "Building with Docker..."
+    
+    # Start command (defined in Dockerfile CMD, but can override here)
+    # startCommand: gunicorn app.main:app --workers 2 --worker-class uvicorn.workers.UvicornWorker --bind 0.0.0.0:$PORT
+    
+    # Automatic deployments
+    autoDeploy: true  # Deploy on every push to branch
+    
+    # Notifications (optional)
+    # buildFilter:
+    #   paths:
+    #     - app/**
+    #     - requirements.txt
+    #     - Dockerfile
+
+# Database (optional - for storing audit logs)
+# - type: pserv
+#   name: fairness-postgres
+#   runtime: postgres
+#   plan: starter
+#   databaseName: fairness_db
+#   databaseUser: fairness_user
+#   ipAllowList:
+#     - source: 0.0.0.0/0
+#       description: Allow all (restrict in production)
+
+# Redis (optional - for caching fairness results)
+# - type: redis
+#   name: fairness-cache
+#   plan: starter
+#   maxmemoryPolicy: allkeys-lru
+#   ipAllowList:
+#     - source: 0.0.0.0/0

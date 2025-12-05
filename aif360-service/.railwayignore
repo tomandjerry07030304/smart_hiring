@@ -1,0 +1,43 @@
+# Railway Ignore File
+# Files to exclude from deployment
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+
+# Virtual environments
+venv/
+env/
+ENV/
+.venv/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Documentation (not needed in production)
+DEPLOYMENT_GUIDE.md
+README.md
+
+# Tests (not needed in production)
+tests/
+*.test.py
+
+# Git
+.git/
+.gitignore
