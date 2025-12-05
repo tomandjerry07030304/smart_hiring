@@ -315,15 +315,93 @@ async function submitJob(e) {
 
 async function loadCompanyCandidates() {
     const container = document.getElementById('companyCandidates');
-    container.innerHTML = `
-        <div class="content-header">
-            <h2>🎯 Matched Candidates</h2>
-        </div>
-        <div class="card">
-            <p>View candidates matched to your job postings based on their assessment scores and skills.</p>
-            <p class="empty-state">Post jobs to see matched candidates</p>
-        </div>
-    `;
+    container.innerHTML = '<div class="loading">Loading your jobs and candidates...</div>';
+    
+    try {
+        // Fetch all jobs for this recruiter
+        const response = await fetch(`${API_URL}/jobs/company`, {
+            headers: { 'Authorization': `Bearer ${authToken}` }
+        });
+        
+        if (!response.ok) {
+            throw new Error('Failed to load jobs');
+        }
+        
+        const data = await response.json();
+        const jobs = data.jobs || [];
+        
+        if (jobs.length === 0) {
+            container.innerHTML = `
+                <div class="content-header">
+                    <h2>🎯 Matched Candidates</h2>
+                </div>
+                <div class="empty-state">
+                    <div style="font-size: 64px; margin-bottom: 16px;">💼</div>
+                    <h3>No Jobs Posted Yet</h3>
+                    <p>Post your first job to start receiving candidate applications</p>
+                    <button class="btn btn-primary" onclick="switchCompanyTab('jobs')">Post a Job</button>
+                </div>
+            `;
+            return;
+        }
+        
+        container.innerHTML = `
+            <div class="content-header">
+                <h2>🎯 Matched Candidates by Job</h2>
+                <p style="color: #64748b;">Click on any job to view AI-ranked candidates</p>
+            </div>
+            <div class="jobs-grid">
+                ${jobs.map(job => `
+                    <div class="card job-candidate-card" onclick="viewJobCandidates('${job._id}')" style="cursor: pointer; transition: all 0.3s; border: 2px solid #e2e8f0;">
+                        <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 12px;">
+                            <div style="flex: 1;">
+                                <h3 style="margin: 0 0 8px 0; color: #1e293b;">${job.title}</h3>
+                                <div style="display: flex; gap: 12px; flex-wrap: wrap; font-size: 14px; color: #64748b;">
+                                    <span>📍 ${job.location || 'Remote'}</span>
+                                    <span>💼 ${job.job_type || 'Full-time'}</span>
+                                </div>
+                            </div>
+                            <span class="badge ${job.status === 'open' ? 'badge-success' : 'badge-warning'}" style="text-transform: uppercase;">
+                                ${job.status || 'open'}
+                            </span>
+                        </div>
+                        
+                        <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 8px; padding: 16px; color: white; margin-top: 16px;">
+                            <div style="display: flex; justify-content: space-between; align-items: center;">
+                                <div>
+                                    <div style="font-size: 32px; font-weight: 700; margin-bottom: 4px;">
+                                        ${job.applications_count || 0}
+                                    </div>
+                                    <div style="opacity: 0.9;">Total Applicants</div>
+                                </div>
+                                <div style="font-size: 48px; opacity: 0.3;">
+                                    👥
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div style="margin-top: 16px; padding-top: 16px; border-top: 1px solid #e2e8f0; text-align: center; color: #667eea; font-weight: 600;">
+                            Click to view ranked candidates →
+                        </div>
+                    </div>
+                `).join('')}
+            </div>
+        `;
+        
+        container.classList.add('active');
+        
+    } catch (error) {
+        console.error('Error loading candidates:', error);
+        container.innerHTML = `
+            <div class="content-header">
+                <h2>🎯 Matched Candidates</h2>
+            </div>
+            <div class="alert alert-error">
+                Failed to load candidates data. Please try again.
+            </div>
+            <button class="btn btn-primary" onclick="loadCompanyCandidates()">Retry</button>
+        `;
+    }
 }
 
 let selectedApplications = new Set();
