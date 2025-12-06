@@ -48,13 +48,19 @@ RUN useradd -m -u 1000 appuser && \
     chown -R appuser:appuser /app
 USER appuser
 
-# Expose port (Render will inject $PORT)
-EXPOSE ${PORT}
+# Expose port (Railway will inject $PORT at runtime)
+EXPOSE 8000
 
-# Health check (without curl dependency)
-HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
-    CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:${PORT}/health').read()" || exit 1
+# Health check disabled for Railway (Railway uses external checks)
+# HEALTHCHECK disabled
 
 # Start command using Gunicorn with Uvicorn workers
-# This is production-grade: handles multiple workers, graceful shutdowns, etc.
-CMD ["sh", "-c", "gunicorn app.main:app --workers 2 --worker-class uvicorn.workers.UvicornWorker --bind 0.0.0.0:${PORT:-8000} --timeout 120 --access-logfile - --error-logfile -"]
+# Railway injects PORT at runtime, fallback to 8000
+CMD gunicorn app.main:app \
+    --workers 1 \
+    --worker-class uvicorn.workers.UvicornWorker \
+    --bind 0.0.0.0:${PORT:-8000} \
+    --timeout 120 \
+    --log-level info \
+    --access-logfile - \
+    --error-logfile -
