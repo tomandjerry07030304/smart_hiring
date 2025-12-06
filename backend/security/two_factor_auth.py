@@ -3,12 +3,27 @@ Two-Factor Authentication (2FA) Implementation
 Supports TOTP (Time-based One-Time Password)
 """
 
-import pyotp
-import qrcode
 import io
 import base64
 from typing import Tuple, Optional
 import logging
+
+# Optional dependencies - graceful degradation if not available
+try:
+    import pyotp
+    PYOTP_AVAILABLE = True
+except ImportError:
+    PYOTP_AVAILABLE = False
+    pyotp = None
+    logging.warning("pyotp not available - 2FA disabled")
+
+try:
+    import qrcode
+    QRCODE_AVAILABLE = True
+except ImportError:
+    QRCODE_AVAILABLE = False
+    qrcode = None
+    logging.warning("qrcode not available - QR code generation disabled")
 
 logger = logging.getLogger(__name__)
 
@@ -24,6 +39,8 @@ class TwoFactorAuth:
         Returns:
             Base32-encoded secret
         """
+        if not PYOTP_AVAILABLE:
+            raise RuntimeError("pyotp not available - cannot generate secret")
         return pyotp.random_base32()
     
     @staticmethod
@@ -39,6 +56,8 @@ class TwoFactorAuth:
         Returns:
             Provisioning URI
         """
+        if not PYOTP_AVAILABLE:
+            raise RuntimeError("pyotp not available - cannot generate provisioning URI")
         totp = pyotp.TOTP(secret)
         return totp.provisioning_uri(
             name=email,
@@ -56,6 +75,10 @@ class TwoFactorAuth:
         Returns:
             Base64-encoded QR code image
         """
+        if not QRCODE_AVAILABLE:
+            logger.warning("qrcode not available - cannot generate QR code")
+            return ""
+            
         try:
             # Generate QR code
             qr = qrcode.QRCode(version=1, box_size=10, border=5)
@@ -88,6 +111,10 @@ class TwoFactorAuth:
         Returns:
             True if valid, False otherwise
         """
+        if not PYOTP_AVAILABLE:
+            logger.warning("pyotp not available - 2FA verification disabled")
+            return False
+            
         try:
             totp = pyotp.TOTP(secret)
             # Verify with 1-step tolerance for clock skew
