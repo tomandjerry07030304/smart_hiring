@@ -1787,6 +1787,9 @@ async function loadJobFairnessReport() {
         reportDiv.innerHTML = generateFairnessReportHTML(report);
         reportDiv.style.display = 'block';
         
+        // Render charts after DOM is updated
+        setTimeout(() => renderFairnessCharts(report), 100);
+        
         showNotification('Fairness report generated successfully!', 'success');
         
     } catch (error) {
@@ -1900,6 +1903,21 @@ function generateFairnessReportHTML(report) {
                 </div>
             </div>
             
+            <!-- Visual Charts Section -->
+            <div class="charts-section">
+                <h4>📊 Visual Analytics</h4>
+                <div class="charts-grid">
+                    <div class="chart-container">
+                        <h5>Selection Rate Comparison</h5>
+                        <canvas id="selectionRateChart-${job_info.job_id}"></canvas>
+                    </div>
+                    <div class="chart-container">
+                        <h5>Group Distribution</h5>
+                        <canvas id="groupDistChart-${job_info.job_id}"></canvas>
+                    </div>
+                </div>
+            </div>
+            
             <!-- Recommendations -->
             ${recommendations.length > 0 ? `
                 <div class="recommendations-section">
@@ -1990,9 +2008,155 @@ async function applyFairShortlisting(jobId, method) {
         // Reload the fairness report to show updated data
         setTimeout(() => loadJobFairnessReport(), 1500);
         
+        
     } catch (error) {
         console.error('Error applying fair shortlisting:', error);
         showNotification('Error applying fair shortlisting', 'error');
+    }
+}
+
+// ============= FAIRNESS CHARTS VISUALIZATION =============
+
+function renderFairnessCharts(report) {
+    const { job_info, group_statistics } = report;
+    
+    // Check if Chart.js is available
+    if (typeof Chart === 'undefined') {
+        console.warn('Chart.js not loaded - skipping chart rendering');
+        return;
+    }
+    
+    // Prepare data
+    const groups = Object.keys(group_statistics);
+    const selectionRates = groups.map(g => (group_statistics[g].selection_rate * 100).toFixed(1));
+    const avgScores = groups.map(g => group_statistics[g].avg_score.toFixed(1));
+    const counts = groups.map(g => group_statistics[g].count);
+    
+    // Color scheme
+    const colors = [
+        'rgba(102, 126, 234, 0.8)',  // Purple
+        'rgba(118, 75, 162, 0.8)',   // Dark purple
+        'rgba(237, 100, 166, 0.8)',  // Pink
+        'rgba(255, 154, 158, 0.8)'   // Light red
+    ];
+    
+    const borderColors = [
+        'rgba(102, 126, 234, 1)',
+        'rgba(118, 75, 162, 1)',
+        'rgba(237, 100, 166, 1)',
+        'rgba(255, 154, 158, 1)'
+    ];
+    
+    // Selection Rate Chart
+    const selectionCtx = document.getElementById(`selectionRateChart-${job_info.job_id}`);
+    if (selectionCtx) {
+        new Chart(selectionCtx, {
+            type: 'bar',
+            data: {
+                labels: groups.map(g => g.replace('_', ' ').toUpperCase()),
+                datasets: [{
+                    label: 'Selection Rate (%)',
+                    data: selectionRates,
+                    backgroundColor: colors,
+                    borderColor: borderColors,
+                    borderWidth: 2,
+                    borderRadius: 8
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: true,
+                plugins: {
+                    legend: {
+                        display: true,
+                        position: 'top'
+                    },
+                    title: {
+                        display: false
+                    },
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                const group = groups[context.dataIndex];
+                                const stats = group_statistics[group];
+                                return [
+                                    `Selection Rate: ${context.parsed.y}%`,
+                                    `Shortlisted: ${stats.positive_outcomes}/${stats.count}`,
+                                    `Avg Score: ${stats.avg_score.toFixed(1)}`
+                                ];
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        max: 100,
+                        ticks: {
+                            callback: function(value) {
+                                return value + '%';
+                            }
+                        },
+                        title: {
+                            display: true,
+                            text: 'Selection Rate'
+                        }
+                    },
+                    x: {
+                        title: {
+                            display: true,
+                            text: 'Demographic Groups'
+                        }
+                    }
+                }
+            }
+        });
+    }
+    
+    // Group Distribution Chart (Pie)
+    const distCtx = document.getElementById(`groupDistChart-${job_info.job_id}`);
+    if (distCtx) {
+        new Chart(distCtx, {
+            type: 'doughnut',
+            data: {
+                labels: groups.map(g => g.replace('_', ' ').toUpperCase()),
+                datasets: [{
+                    label: 'Applicants',
+                    data: counts,
+                    backgroundColor: colors,
+                    borderColor: borderColors,
+                    borderWidth: 2
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: true,
+                plugins: {
+                    legend: {
+                        display: true,
+                        position: 'right'
+                    },
+                    title: {
+                        display: false
+                    },
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                const group = groups[context.dataIndex];
+                                const stats = group_statistics[group];
+                                const total = counts.reduce((a, b) => a + b, 0);
+                                const percentage = ((stats.count / total) * 100).toFixed(1);
+                                return [
+                                    `${context.label}: ${stats.count} (${percentage}%)`,
+                                    `Avg Score: ${stats.avg_score.toFixed(1)}`,
+                                    `Selection Rate: ${(stats.selection_rate * 100).toFixed(1)}%`
+                                ];
+                            }
+                        }
+                    }
+                }
+            }
+        });
     }
 }
 

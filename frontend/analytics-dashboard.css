@@ -1451,6 +1451,43 @@
     color: #1e293b;
 }
 
+/* Visual Charts Section */
+.charts-section {
+    margin-bottom: 32px;
+}
+
+.charts-section h4 {
+    font-size: 20px;
+    font-weight: 700;
+    color: #1e293b;
+    margin-bottom: 20px;
+}
+
+.charts-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+    gap: 24px;
+}
+
+.chart-container {
+    background: white;
+    border-radius: 12px;
+    padding: 24px;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.06);
+}
+
+.chart-container h5 {
+    font-size: 16px;
+    font-weight: 600;
+    color: #1e293b;
+    margin-bottom: 16px;
+    text-align: center;
+}
+
+.chart-container canvas {
+    max-height: 300px;
+}
+
 /* Responsive Design */
 @media (max-width: 768px) {
     .job-fairness-selector {
@@ -1470,6 +1507,10 @@
         grid-template-columns: 1fr;
     }
     
+    .charts-grid {
+        grid-template-columns: 1fr;
+    }
+    
     .action-buttons {
         flex-direction: column;
     }
@@ -1478,4 +1519,3 @@
         min-width: auto;
     }
 }
-
