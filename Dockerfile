@@ -1,5 +1,10 @@
+# ============================================================================
+# PRODUCTION DOCKERFILE FOR MAIN FLASK APP
+# For main Smart Hiring System deployment on Render
+# ============================================================================
+
 # Multi-stage build for Smart Hiring System Backend
-FROM python:3.13-slim as builder
+FROM python:3.11-slim as builder
 
 # Set working directory
 WORKDIR /app
@@ -17,7 +22,7 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir --user -r requirements.txt
 
 # Final stage
-FROM python:3.13-slim
+FROM python:3.11-slim
 
 # Set working directory
 WORKDIR /app
@@ -39,7 +44,8 @@ COPY --chown=appuser:appuser app.py .
 ENV PATH=/home/appuser/.local/bin:$PATH \
     PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
-    FLASK_APP=app.py
+    FLASK_APP=app.py \
+    PORT=8000
 
 # Create necessary directories
 RUN mkdir -p /app/backend/uploads /app/backend/logs && \
@@ -49,11 +55,11 @@ RUN mkdir -p /app/backend/uploads /app/backend/logs && \
 USER appuser
 
 # Expose port
-EXPOSE 5000
+EXPOSE 8000
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD python -c "import requests; requests.get('http://localhost:5000/api/health')"
+# Health check (without curl dependency)
+HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
+    CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/health').read()" || exit 1
 
-# Run application
-CMD ["gunicorn", "--bind", "0.0.0.0:5000", "--workers", "4", "--timeout", "120", "app:app"]
+# Start Flask app with Gunicorn
+CMD ["sh", "-c", "gunicorn app:app --bind 0.0.0.0:${PORT:-8000} --workers 2 --timeout 120 --access-logfile - --error-logfile -"]

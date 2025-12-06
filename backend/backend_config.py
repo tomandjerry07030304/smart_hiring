@@ -48,7 +48,8 @@ class Config:
     ADMIN_USER = os.getenv('ADMIN_USER', 'admin')
     ADMIN_PASSWORD = os.getenv('ADMIN_PASSWORD', 'changeme')
     JWT_SECRET_KEY = os.getenv('JWT_SECRET_KEY', SECRET_KEY)
-    JWT_ACCESS_TOKEN_EXPIRES = int(os.getenv('JWT_ACCESS_TOKEN_EXPIRES', 3600))
+    # Set token expiry to 24 hours (86400 seconds) to prevent frequent expiration
+    JWT_ACCESS_TOKEN_EXPIRES = int(os.getenv('JWT_ACCESS_TOKEN_EXPIRES', 86400))
     
     # File Upload Settings
     MAX_UPLOAD_SIZE = int(os.getenv('MAX_UPLOAD_SIZE', 10485760))  # 10 MB

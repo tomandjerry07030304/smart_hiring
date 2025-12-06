@@ -1,9 +1,8 @@
 services:
   - type: web
     name: smart-hiring-system
-    env: python
-    buildCommand: pip install -r requirements.txt
-    startCommand: gunicorn app:app
+    runtime: docker
+    dockerfilePath: ./Dockerfile
     envVars:
       - key: PYTHON_VERSION
         value: 3.11.0
@@ -13,5 +12,9 @@ services:
         sync: false
       - key: JWT_SECRET_KEY
         sync: false
+      - key: JWT_ACCESS_TOKEN_EXPIRES
+        value: 86400
       - key: FLASK_ENV
         value: production
+      - key: PORT
+        value: 8000

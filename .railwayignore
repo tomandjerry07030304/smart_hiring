@@ -1,0 +1,52 @@
+# Exclude from Railway deployment
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+
+# Tests
+tests/
+test_*.py
+*_test.py
+
+# Documentation
+*.md
+!README.md
+docs/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Git
+.git/
+.gitignore
+.gitattributes
+
+# Virtual environments
+venv/
+.venv/
+env/
+.env
+
+# Other services (exclude main Flask app)
+backend/
+frontend/
+config/
+app.py
+requirements.txt
+Dockerfile
+render.yaml
+
+# Keep only AIF360 service files
+!aif360-service/
+!Dockerfile.aif360
+!railway.aif360.json
