@@ -48,13 +48,19 @@ RUN useradd -m -u 1000 appuser && \
     chown -R appuser:appuser /app
 USER appuser
 
-# Expose port (Render will inject $PORT)
-EXPOSE ${PORT}
+# Expose port (Railway will inject $PORT, default to 8000)
+EXPOSE 8000
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
-    CMD curl -f http://localhost:${PORT}/health || exit 1
+# Health check (Railway handles health checks externally, disable internal)
+# HEALTHCHECK disabled for Railway - Railway uses external TCP checks
 
 # Start command using Gunicorn with Uvicorn workers
-# This is production-grade: handles multiple workers, graceful shutdowns, etc.
-CMD ["sh", "-c", "gunicorn app.main:app --workers 2 --worker-class uvicorn.workers.UvicornWorker --bind 0.0.0.0:${PORT} --timeout 120 --access-logfile - --error-logfile -"]
+# Railway injects PORT at runtime, fallback to 8000
+CMD gunicorn app.main:app \
+    --workers 1 \
+    --worker-class uvicorn.workers.UvicornWorker \
+    --bind 0.0.0.0:${PORT:-8000} \
+    --timeout 120 \
+    --log-level info \
+    --access-logfile - \
+    --error-logfile -
