@@ -8,15 +8,15 @@ gunicorn==21.2.0
 # Database
 pymongo==4.6.1
 
-# Redis for queuing and caching
+# Redis for queuing and caching (optional - gracefully degrades)
 redis==5.0.1
-celery==5.3.4
-flower==2.0.1  # Celery monitoring
+# celery==5.3.4  # DISABLED: Requires Redis, optional for async tasks
+# flower==2.0.1  # DISABLED: Celery monitoring (not critical)
 
 # Security
 cryptography==41.0.7
-pyotp==2.9.0
-qrcode[pil]==7.4.2
+# pyotp==2.9.0  # DISABLED: Optional 2FA (not implemented yet)
+# qrcode[pil]==7.4.2  # DISABLED: Optional QR code generation
 
 # API & Web
 requests>=2.32.3
@@ -32,7 +32,8 @@ psutil==5.9.6
 # Resume Parsing
 PyPDF2==3.0.1
 python-docx==1.1.0
-spacy==3.7.2
+# spacy==3.7.2  # DISABLED: Causes build failures on Render (heavy C++ compilation)
+                # Code gracefully degrades to keyword-based extraction without spacy
 
 # Monitoring & Observability
 sentry-sdk==1.39.2
