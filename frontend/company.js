@@ -83,7 +83,10 @@ function switchCompanyTab(tab) {
         case 'candidates': loadCompanyCandidates(); break;
         case 'applications': loadCompanyApplications(); break;
         case 'analytics': loadCompanyAnalytics(); break;
-        case 'audit': loadCompanyAudit(); break;
+        case 'audit': 
+            loadCompanyAudit(); 
+            loadJobsForFairnessAnalysis();
+            break;
     }
 }
 
@@ -1542,6 +1545,28 @@ async function loadCompanyAudit() {
                 </div>
             </div>
             
+            <!-- Job-Specific Fairness Analysis -->
+            <div class="audit-section">
+                <div class="section-header">
+                    <h3>🎯 Job-Specific Fairness Analysis</h3>
+                    <p>Detailed bias detection and compliance checking per job posting</p>
+                </div>
+                
+                <div class="job-fairness-selector">
+                    <label for="fairnessJobSelect">Select Job to Analyze:</label>
+                    <select id="fairnessJobSelect" onchange="loadJobFairnessReport()">
+                        <option value="">-- Select a Job --</option>
+                    </select>
+                    <button class="btn-primary" onclick="loadJobFairnessReport()">
+                        🔍 Generate Fairness Report
+                    </button>
+                </div>
+                
+                <div id="jobFairnessReport" style="display: none;">
+                    <!-- Report will be dynamically loaded here -->
+                </div>
+            </div>
+            
             <!-- Score Distribution Analysis -->
             <div class="audit-section">
                 <div class="section-header">
@@ -1704,3 +1729,270 @@ function exportAuditReport() {
     showNotification('Generating compliance report...', 'success');
     // In production, this would generate a detailed PDF report
 }
+
+// ============= JOB-SPECIFIC FAIRNESS ANALYSIS =============
+
+async function loadJobsForFairnessAnalysis() {
+    try {
+        const response = await fetch(`${API_URL}/jobs/my-jobs`, {
+            headers: { 'Authorization': `Bearer ${authToken}` }
+        });
+        
+        if (!response.ok) return;
+        
+        const jobs = await response.json();
+        const select = document.getElementById('fairnessJobSelect');
+        
+        if (!select) return;
+        
+        select.innerHTML = '<option value="">-- Select a Job --</option>';
+        jobs.forEach(job => {
+            const option = document.createElement('option');
+            option.value = job._id;
+            option.textContent = `${job.title} (${job.applications_count || 0} applications)`;
+            select.appendChild(option);
+        });
+        
+    } catch (error) {
+        console.error('Error loading jobs:', error);
+    }
+}
+
+async function loadJobFairnessReport() {
+    const jobId = document.getElementById('fairnessJobSelect')?.value;
+    const reportDiv = document.getElementById('jobFairnessReport');
+    
+    if (!jobId || !reportDiv) {
+        if (reportDiv) reportDiv.style.display = 'none';
+        return;
+    }
+    
+    showNotification('Generating fairness report...', 'info');
+    
+    try {
+        const response = await fetch(`${API_URL}/jobs/${jobId}/fairness-report`, {
+            headers: { 'Authorization': `Bearer ${authToken}` }
+        });
+        
+        if (!response.ok) {
+            const errorData = await response.json();
+            showNotification(errorData.error || 'Failed to generate fairness report', 'error');
+            reportDiv.style.display = 'none';
+            return;
+        }
+        
+        const report = await response.json();
+        
+        // Display the report
+        reportDiv.innerHTML = generateFairnessReportHTML(report);
+        reportDiv.style.display = 'block';
+        
+        showNotification('Fairness report generated successfully!', 'success');
+        
+    } catch (error) {
+        console.error('Error loading fairness report:', error);
+        showNotification('Error generating fairness report', 'error');
+        reportDiv.style.display = 'none';
+    }
+}
+
+function generateFairnessReportHTML(report) {
+    const { job_info, summary, group_statistics, metrics, compliance, recommendations } = report;
+    
+    // Determine overall compliance status
+    const overallStatus = compliance.overall_status;
+    const statusColor = overallStatus === 'PASS' ? '#10b981' : 
+                       overallStatus === 'MEDIUM' ? '#f59e0b' : '#ef4444';
+    const statusIcon = overallStatus === 'PASS' ? '✅' : 
+                      overallStatus === 'MEDIUM' ? '⚠️' : '❌';
+    
+    return `
+        <div class="fairness-report-container">
+            <!-- Report Header -->
+            <div class="report-header">
+                <h4>${job_info.title}</h4>
+                <div class="report-meta">
+                    <span>📍 ${job_info.location}</span>
+                    <span>👥 ${summary.total_applicants} applicants</span>
+                    <span>📅 ${new Date(report.generated_at).toLocaleDateString()}</span>
+                </div>
+            </div>
+            
+            <!-- Overall Compliance Status -->
+            <div class="compliance-banner" style="background: linear-gradient(135deg, ${statusColor}15, ${statusColor}05); border-left: 4px solid ${statusColor};">
+                <div class="compliance-icon" style="font-size: 3rem;">${statusIcon}</div>
+                <div class="compliance-content">
+                    <h3>Overall Compliance Status: ${overallStatus}</h3>
+                    <p>${compliance.eeoc_80_rule.compliant ? 
+                        '✅ Meets EEOC 80% rule - No significant adverse impact detected' : 
+                        '⚠️ Does not meet EEOC 80% rule - Review required'}</p>
+                </div>
+            </div>
+            
+            <!-- Key Metrics Cards -->
+            <div class="metrics-grid">
+                <div class="metric-card">
+                    <div class="metric-icon" style="background: linear-gradient(135deg, #667eea, #764ba2);">📊</div>
+                    <div class="metric-content">
+                        <div class="metric-label">Demographic Parity</div>
+                        <div class="metric-value">${(Math.abs(metrics.demographic_parity.difference) * 100).toFixed(1)}%</div>
+                        <div class="metric-status ${Math.abs(metrics.demographic_parity.difference) < 0.05 ? 'good' : 'warning'}">
+                            ${Math.abs(metrics.demographic_parity.difference) < 0.05 ? 'Good' : 'Needs Review'}
+                        </div>
+                        <p class="metric-desc">Difference in selection rates between groups</p>
+                    </div>
+                </div>
+                
+                <div class="metric-card">
+                    <div class="metric-icon" style="background: linear-gradient(135deg, #f093fb, #f5576c);">⚖️</div>
+                    <div class="metric-content">
+                        <div class="metric-label">Disparate Impact</div>
+                        <div class="metric-value">${(metrics.disparate_impact.ratio * 100).toFixed(0)}%</div>
+                        <div class="metric-status ${metrics.disparate_impact.ratio >= 0.8 ? 'good' : 'warning'}">
+                            ${metrics.disparate_impact.ratio >= 0.8 ? 'Compliant' : 'Below Threshold'}
+                        </div>
+                        <p class="metric-desc">EEOC 80% rule compliance (should be ≥80%)</p>
+                    </div>
+                </div>
+                
+                <div class="metric-card">
+                    <div class="metric-icon" style="background: linear-gradient(135deg, #4facfe, #00f2fe);">🎯</div>
+                    <div class="metric-content">
+                        <div class="metric-label">Equal Opportunity</div>
+                        <div class="metric-value">${(Math.abs(metrics.equal_opportunity.difference) * 100).toFixed(1)}%</div>
+                        <div class="metric-status ${Math.abs(metrics.equal_opportunity.difference) < 0.1 ? 'good' : 'warning'}">
+                            ${Math.abs(metrics.equal_opportunity.difference) < 0.1 ? 'Fair' : 'Gap Detected'}
+                        </div>
+                        <p class="metric-desc">Qualified candidates selected at similar rates</p>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Group Statistics -->
+            <div class="group-stats-section">
+                <h4>📈 Demographic Group Statistics</h4>
+                <div class="stats-grid">
+                    ${Object.entries(group_statistics).map(([group, stats]) => `
+                        <div class="stat-card">
+                            <div class="stat-header">
+                                <span class="stat-group">${group.replace('_', ' ').toUpperCase()}</span>
+                                <span class="stat-count">${stats.count} applicants</span>
+                            </div>
+                            <div class="stat-body">
+                                <div class="stat-row">
+                                    <span>Average Score:</span>
+                                    <span class="stat-value">${stats.avg_score.toFixed(1)}</span>
+                                </div>
+                                <div class="stat-row">
+                                    <span>Selection Rate:</span>
+                                    <span class="stat-value">${(stats.selection_rate * 100).toFixed(1)}%</span>
+                                </div>
+                                <div class="stat-row">
+                                    <span>Shortlisted:</span>
+                                    <span class="stat-value">${stats.positive_outcomes}</span>
+                                </div>
+                            </div>
+                            <div class="stat-progress">
+                                <div class="progress-bar" style="width: ${stats.selection_rate * 100}%; background: ${stats.selection_rate >= 0.3 ? '#10b981' : '#f59e0b'};"></div>
+                            </div>
+                        </div>
+                    `).join('')}
+                </div>
+            </div>
+            
+            <!-- Recommendations -->
+            ${recommendations.length > 0 ? `
+                <div class="recommendations-section">
+                    <h4>💡 Actionable Recommendations</h4>
+                    <div class="recommendations-list">
+                        ${recommendations.map(rec => {
+                            const severityColors = {
+                                'CRITICAL': '#ef4444',
+                                'HIGH': '#f59e0b',
+                                'MEDIUM': '#3b82f6',
+                                'PASS': '#10b981'
+                            };
+                            return `
+                                <div class="recommendation-card" style="border-left: 4px solid ${severityColors[rec.severity]};">
+                                    <div class="rec-header">
+                                        <span class="rec-severity" style="background: ${severityColors[rec.severity]};">
+                                            ${rec.severity}
+                                        </span>
+                                        <span class="rec-category">${rec.category}</span>
+                                    </div>
+                                    <p class="rec-message">${rec.message}</p>
+                                </div>
+                            `;
+                        }).join('')}
+                    </div>
+                </div>
+            ` : ''}
+            
+            <!-- Fair Shortlisting Actions -->
+            <div class="fairness-actions">
+                <h4>🛠️ Apply Fair Shortlisting</h4>
+                <p>If you detect bias, use one of these fairness algorithms to adjust the shortlist:</p>
+                <div class="action-buttons">
+                    <button class="btn-fairness" onclick="applyFairShortlisting('${job_info.job_id}', 'postprocessing')">
+                        📊 Post-Processing (80% Rule)
+                    </button>
+                    <button class="btn-fairness" onclick="applyFairShortlisting('${job_info.job_id}', 'reweighting')">
+                        ⚖️ Reweighting Algorithm
+                    </button>
+                    <button class="btn-fairness" onclick="applyFairShortlisting('${job_info.job_id}', 'threshold_optimization')">
+                        🎯 Threshold Optimization
+                    </button>
+                </div>
+                <p class="action-note">
+                    <strong>Note:</strong> These algorithms will adjust candidate shortlisting to ensure fairness while maintaining quality standards.
+                </p>
+            </div>
+        </div>
+    `;
+}
+
+async function applyFairShortlisting(jobId, method) {
+    const methodNames = {
+        'postprocessing': 'Post-Processing (80% Rule)',
+        'reweighting': 'Reweighting Algorithm',
+        'threshold_optimization': 'Threshold Optimization'
+    };
+    
+    if (!confirm(`Apply ${methodNames[method]} to this job's shortlist?\n\nThis will update candidate statuses based on fairness algorithms.`)) {
+        return;
+    }
+    
+    showNotification(`Applying ${methodNames[method]}...`, 'info');
+    
+    try {
+        const response = await fetch(`${API_URL}/jobs/${jobId}/fair-shortlist`, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${authToken}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ method })
+        });
+        
+        if (!response.ok) {
+            const errorData = await response.json();
+            showNotification(errorData.error || 'Failed to apply fair shortlisting', 'error');
+            return;
+        }
+        
+        const result = await response.json();
+        
+        showNotification(
+            `✅ Fair shortlisting applied! ${result.shortlisted_count} candidates shortlisted (${result.adjustments_made} adjustments made for fairness).`,
+            'success'
+        );
+        
+        // Reload the fairness report to show updated data
+        setTimeout(() => loadJobFairnessReport(), 1500);
+        
+    } catch (error) {
+        console.error('Error applying fair shortlisting:', error);
+        showNotification('Error applying fair shortlisting', 'error');
+    }
+}
+
