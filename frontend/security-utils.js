@@ -156,10 +156,66 @@ const SecurityUtils = {
         }
         
         return element;
+    },
+    
+    /**
+     * Secure API fetch wrapper with automatic auth error handling
+     * @param {string} url - API endpoint URL
+     * @param {Object} options - Fetch options
+     * @returns {Promise<Response>} - Fetch promise
+     */
+    async secureFetch(url, options = {}) {
+        try {
+            const response = await fetch(url, options);
+            
+            // Handle 401 Unauthorized (expired token)
+            if (response.status === 401) {
+                console.warn('⚠️ Authentication token expired or invalid');
+                
+                // Clear invalid token
+                localStorage.removeItem('token');
+                localStorage.removeItem('user');
+                
+                // Show user-friendly message
+                if (typeof showNotification === 'function') {
+                    showNotification('Your session has expired. Please login again.', 'warning');
+                }
+                
+                // Redirect to login after 2 seconds
+                setTimeout(() => {
+                    window.location.href = '/';
+                }, 2000);
+                
+                throw new Error('Session expired - redirecting to login');
+            }
+            
+            // Handle other HTTP errors
+            if (!response.ok && response.status !== 404) {
+                const errorData = await response.json().catch(() => ({}));
+                const errorMessage = errorData.error || errorData.message || `HTTP ${response.status}: ${response.statusText}`;
+                
+                if (typeof showNotification === 'function') {
+                    showNotification(errorMessage, 'error');
+                }
+                
+                throw new Error(errorMessage);
+            }
+            
+            return response;
+        } catch (error) {
+            // Network errors
+            if (error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
+                if (typeof showNotification === 'function') {
+                    showNotification('Network error. Please check your connection.', 'error');
+                }
+            }
+            throw error;
+        }
     }
 };
 
 // Make available globally
 if (typeof window !== 'undefined') {
     window.SecurityUtils = SecurityUtils;
+    window.secureFetch = SecurityUtils.secureFetch.bind(SecurityUtils);
 }

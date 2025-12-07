@@ -3,7 +3,6 @@ from flask_jwt_extended import jwt_required, get_jwt_identity
 from datetime import datetime
 from bson import ObjectId
 import os
-import logging
 
 from backend.models.database import get_db
 from backend.models.job import Application
@@ -13,9 +12,6 @@ from backend.utils.matching import extract_skills, analyze_candidate
 from backend.utils.cci_calculator import calculate_career_consistency_index
 from backend.utils.email_service import email_service
 from backend.routes.audit_routes import log_audit_event
-
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
 
 bp = Blueprint('candidates', __name__)
 
@@ -266,75 +262,16 @@ def apply_to_job(job_id):
         except Exception as email_error:
             print(f"⚠️ Application emails failed: {email_error}")
         
-        # === NEW: AUTOMATIC FAIRNESS CHECK ===
-        # Check if this job has multiple applications for potential bias
-        logger.info(f"✅ Application {application_id} created - checking fairness...")
-        
-        try:
-            # Count total applications for this job
-            total_apps = applications_collection.count_documents({'job_id': job_id})
-            
-            if total_apps >= 5:  # Minimum threshold for fairness analysis
-                logger.info(f"🔍 Job {job_id} now has {total_apps} applications - fairness analysis recommended")
-                
-                # Mark for recruiter review
-                applications_collection.update_one(
-                    {'_id': result.inserted_id},
-                    {'$set': {'fairness_check_pending': True}}
-                )
-                
-                # If >= 10 applications, run automatic preliminary fairness check
-                if total_apps >= 10:
-                    logger.info(f"⚖️ Running preliminary fairness check for job {job_id}...")
-                    
-                    # This will be used by recruiter when they shortlist
-                    jobs_collection.update_one(
-                        {'_id': ObjectId(job_id)},
-                        {'$set': {
-                            'fairness_analysis_ready': True,
-                            'last_fairness_check': datetime.utcnow()
-                        }}
-                    )
-        except Exception as fairness_error:
-            logger.warning(f"⚠️ Fairness check failed: {fairness_error}")
-        
-        # === NEW: STATUS PROGRESSION TRACKING ===
-        # Set up next steps in the hiring pipeline
-        next_steps = {
-            'current_status': 'screening',
-            'next_status': 'assignment_pending',  # Will be triggered when test module is ready
-            'pipeline_stages': [
-                {'stage': 'screening', 'completed': True, 'completed_at': datetime.utcnow()},
-                {'stage': 'assignment', 'completed': False, 'scheduled': False},
-                {'stage': 'interview', 'completed': False, 'scheduled': False},
-                {'stage': 'shortlisting', 'completed': False, 'decision': None}
-            ]
-        }
-        
-        # Update application with pipeline tracking
-        applications_collection.update_one(
-            {'_id': result.inserted_id},
-            {'$set': {
-                'pipeline_status': next_steps,
-                'created_at': datetime.utcnow(),
-                'updated_at': datetime.utcnow()
-            }}
-        )
-        
-        logger.info(f"✅ Application {application_id} successfully created with score: {analysis['overall_score']:.2f}")
-        
         return jsonify({
-            'message': 'Application submitted successfully! You will receive updates via email.',
+            'message': 'Application submitted successfully',
             'application_id': str(result.inserted_id),
             'score': analysis['overall_score'],
             'decision': analysis['decision'],
             'matched_skills': analysis['matched_skills'],
-            'recommendations': analysis['recommendations'],
-            'next_steps': 'Your application is being reviewed. You may be invited to take an assessment next.'
+            'recommendations': analysis['recommendations']
         }), 201
         
     except Exception as e:
-        logger.error(f"❌ Application submission failed: {str(e)}")
         return jsonify({'error': str(e)}), 500
 
 @bp.route('/applications', methods=['GET'])

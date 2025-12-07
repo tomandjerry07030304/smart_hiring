@@ -126,103 +126,32 @@ def extract_text_from_file(file_data, filename):
             return str(file_data)
 
 def anonymize_text(text):
-    """
-    Advanced anonymization removing ALL bias-inducing attributes
-    
-    Removes protected characteristics to prevent unconscious bias:
-    - Personal identifiers (names, emails, phones, addresses)
-    - Gender markers (pronouns, titles, gendered words)
-    - Age indicators (graduation years, decades of experience)
-    - Ethnicity proxies (ethnic names, minority-serving institutions)
-    - Socioeconomic markers (elite universities, zip codes)
-    
-    Based on: Fabris et al. (2025) - Pre-processing bias mitigation
-    """
+    """Remove PII from text using basic regex - simplified version"""
     if not isinstance(text, str):
         return ""
     
-    # 1. Remove contact information
+    # Remove emails
     text = re.sub(r'\S+@\S+', ' [EMAIL] ', text)
+    
+    # Remove phone numbers (various formats)
     text = re.sub(r'\+?\d[\d\-\s()]{6,}\d', ' [PHONE] ', text)
+    
+    # Remove URLs
     text = re.sub(r'http\S+|www\.\S+', ' [URL] ', text)
     
-    # 2. Remove addresses (location bias)
-    text = re.sub(r'\d+\s+[A-Za-z\s]+,\s+[A-Z]{2}\s+\d{5}', ' [ADDRESS] ', text)
-    text = re.sub(r'\b\d{5}(?:-\d{4})?\b', ' [ZIP] ', text)  # Zip codes
+    # Mask gender words
+    text = re.sub(r'\b(Male|Female|male|female|M|F|Man|Woman|man|woman)\b', ' [GENDER] ', text)
     
-    # 3. Remove gender markers
-    # Pronouns
-    text = re.sub(r'\b(he|she|him|her|his|hers|himself|herself)\b', '[PRONOUN]', text, flags=re.IGNORECASE)
-    # Titles
-    text = re.sub(r'\b(mr\.|mrs\.|ms\.|miss|sir|madam)\b', '[TITLE]', text, flags=re.IGNORECASE)
-    # Explicit gender words
-    text = re.sub(r'\b(male|female|man|woman|boy|girl|gentleman|lady)\b', '[GENDER]', text, flags=re.IGNORECASE)
-    
-    # 4. Remove age indicators
-    # Graduation years (strong age proxy)
-    text = re.sub(r'\b(graduated|graduation|class of|batch of)\s+[\'"]?\d{4}[\'"]?\b', '[GRAD_YEAR]', text, flags=re.IGNORECASE)
-    text = re.sub(r'\b(19\d{2}|20[0-2]\d)\s*-\s*(19\d{2}|20[0-2]\d)\b', '[DATE_RANGE]', text)
-    # Years of experience
-    text = re.sub(r'\b(\d+)\s*\+?\s*years?\s*(of\s*)?(experience|exp)\b', '[EXPERIENCE_YEARS]', text, flags=re.IGNORECASE)
-    text = re.sub(r'\b(over|more than|approximately)\s+\d+\s+years?\b', '[EXPERIENCE_DURATION]', text, flags=re.IGNORECASE)
-    
-    # 5. Remove ethnicity-associated markers
-    # Women's colleges (gender proxy)
-    womens_colleges = [
-        'barnard', 'smith college', 'wellesley', 'mount holyoke', 'bryn mawr',
-        'mills college', 'scripps', 'simmons', 'spelman', 'bennett college'
-    ]
-    for college in womens_colleges:
-        text = re.sub(r'\b' + college + r'\b', '[COLLEGE]', text, flags=re.IGNORECASE)
-    
-    # Historically Black Colleges/Universities (ethnicity proxy)
-    hbcus = [
-        'howard', 'morehouse', 'spelman', 'fisk', 'tuskegee', 'hampton',
-        'xavier', 'dillard', 'meharry', 'florida a&m'
-    ]
-    for hbcu in hbcus:
-        text = re.sub(r'\b' + hbcu + r'\b', '[UNIVERSITY]', text, flags=re.IGNORECASE)
-    
-    # 6. Remove elite university names (socioeconomic proxy)
-    elite_universities = [
-        'harvard', 'yale', 'princeton', 'stanford', 'mit', 'caltech',
-        'oxford', 'cambridge', 'columbia', 'upenn', 'dartmouth', 'brown',
-        'cornell', 'duke', 'northwestern', 'johns hopkins'
-    ]
-    for uni in elite_universities:
-        text = re.sub(r'\b' + uni + r'\b', '[UNIVERSITY]', text, flags=re.IGNORECASE)
-    
-    # 7. Remove common ethnic names (controversial but necessary for fairness)
-    # Note: This is a simplified approach. Production systems should use NER models.
-    ethnic_name_patterns = [
-        r'\b(muhammad|ahmed|ali|hassan|fatima|aisha)\b',  # Arabic
-        r'\b(raj|priya|amit|kumar|patel|singh)\b',  # Indian
-        r'\b(wang|li|chen|zhang|liu|yang)\b',  # Chinese
-        r'\b(jose|maria|juan|carlos|rodriguez)\b',  # Hispanic
-        r'\b(jamal|latasha|deshawn|tyrone|tanisha)\b',  # African American
-    ]
-    for pattern in ethnic_name_patterns:
-        text = re.sub(pattern, '[NAME]', text, flags=re.IGNORECASE)
-    
-    # 8. Remove header (likely contains full name)
+    # Simple header removal (first line if it looks like a name)
     lines = [l.strip() for l in text.splitlines() if l.strip()]
     if lines:
         first = lines[0]
-        # If first line looks like a name (1-4 words, title case)
         if 1 <= len(first.split()) <= 4 and first == first.title():
-            lines[0] = "[NAME]"
+            lines[0] = "[REDACTED HEADER]"
         text = "\n".join(lines)
     
-    # 9. Remove marital status indicators
-    text = re.sub(r'\b(married|single|divorced|widowed|spouse|husband|wife)\b', '[MARITAL_STATUS]', text, flags=re.IGNORECASE)
-    
-    # 10. Remove age-related words
-    text = re.sub(r'\b(young|old|senior|junior|age|aged|years old)\b', '[AGE_DESCRIPTOR]', text, flags=re.IGNORECASE)
-    
-    # 11. Compact whitespace
+    # Compact whitespace
     text = re.sub(r'\s{2,}', ' ', text)
-    text = text.strip()
-    
     return text
 
 
