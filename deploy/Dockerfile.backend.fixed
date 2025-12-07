@@ -1,0 +1,151 @@
+# ============================================================================
+# SMART HIRING SYSTEM - PRODUCTION BACKEND DOCKERFILE
+# ============================================================================
+# Multi-stage build for optimized Python backend with FastAPI/Flask
+# Supports: Gunicorn, Celery workers, ML models
+# Python 3.11 (3.13 not recommended for production yet)
+# ============================================================================
+
+# ============================================================================
+# STAGE 1: BUILDER - Compile dependencies and build wheels
+# ============================================================================
+FROM python:3.11-slim AS builder
+
+LABEL maintainer="Smart Hiring System <admin@smarthiring.com>"
+LABEL description="Smart Hiring System Backend - Builder Stage"
+
+WORKDIR /build
+
+# Install build dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    gcc \
+    g++ \
+    libffi-dev \
+    libssl-dev \
+    python3-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy requirements first (cache optimization)
+COPY requirements.txt .
+
+# Install Python dependencies into /build/wheels
+RUN pip install --no-cache-dir --upgrade pip setuptools wheel && \
+    pip wheel --no-cache-dir --wheel-dir=/build/wheels -r requirements.txt
+
+# ============================================================================
+# STAGE 2: RUNTIME - Final slim image
+# ============================================================================
+FROM python:3.11-slim AS runtime
+
+LABEL maintainer="Smart Hiring System <admin@smarthiring.com>"
+LABEL description="Smart Hiring System Backend - Production Runtime"
+LABEL version="2.0.0"
+
+# Set working directory
+WORKDIR /app
+
+# Install runtime dependencies only
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl \
+    ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy pre-built wheels from builder
+COPY --from=builder /build/wheels /tmp/wheels
+
+# Install Python packages from wheels
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir --no-index --find-links=/tmp/wheels /tmp/wheels/* && \
+    rm -rf /tmp/wheels
+
+# ============================================================================
+# COPY APPLICATION CODE
+# ============================================================================
+# Copy in specific order to optimize layer caching
+
+# Copy configuration first (changes less frequently)
+COPY config/ ./config/
+
+# Copy backend application code
+COPY backend/ ./backend/
+
+# Copy root-level files if they exist
+COPY app.py ./
+
+# ============================================================================
+# CREATE NECESSARY DIRECTORIES
+# ============================================================================
+RUN mkdir -p logs && \
+    mkdir -p smart_hiring_resumes && \
+    mkdir -p uploads && \
+    mkdir -p ml_models && \
+    chmod -R 755 logs smart_hiring_resumes uploads ml_models
+
+# ============================================================================
+# CREATE NON-ROOT USER FOR SECURITY
+# ============================================================================
+RUN groupadd -r appuser && \
+    useradd -r -g appuser -u 1000 -s /bin/bash appuser && \
+    chown -R appuser:appuser /app
+
+# Switch to non-root user
+USER appuser
+
+# ============================================================================
+# ENVIRONMENT VARIABLES
+# ============================================================================
+# These are BUILD-TIME defaults. Runtime values come from docker-compose.yml
+
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONPATH=/app \
+    APP_ENV=production \
+    PORT=8000 \
+    LOG_LEVEL=INFO
+
+# ============================================================================
+# EXPOSE PORT
+# ============================================================================
+EXPOSE 8000
+
+# ============================================================================
+# HEALTH CHECK
+# ============================================================================
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+    CMD curl -f http://localhost:8000/api/health || exit 1
+
+# ============================================================================
+# ENTRYPOINT & COMMAND
+# ============================================================================
+# NOTE: Command is overridden in docker-compose.yml for flexibility
+# Default command for standalone container:
+
+CMD ["gunicorn", \
+     "--bind", "0.0.0.0:8000", \
+     "--workers", "4", \
+     "--worker-class", "sync", \
+     "--timeout", "120", \
+     "--keep-alive", "5", \
+     "--max-requests", "1000", \
+     "--max-requests-jitter", "100", \
+     "--access-logfile", "-", \
+     "--error-logfile", "-", \
+     "--log-level", "info", \
+     "backend.wsgi:app"]
+
+# ============================================================================
+# USAGE INSTRUCTIONS
+# ============================================================================
+# Build:
+#   docker build -f deploy/Dockerfile.backend -t smart-hiring-backend:latest .
+#
+# Run standalone:
+#   docker run -p 8000:8000 --env-file .env smart-hiring-backend:latest
+#
+# Run with compose:
+#   docker compose -f deploy/docker-compose.fixed.yml up --build
+#
+# Debug:
+#   docker run -it --rm smart-hiring-backend:latest /bin/bash
+# ============================================================================

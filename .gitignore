@@ -102,3 +102,10 @@ ml_models/*.pkl
 ml_models/*.joblib
 uploads/
 temp/
+
+# Deployment sensitive files
+PRODUCTION_ENV_VARS.txt
+*.zip
+Documentation_Package_DOCX/
+Documentation_Package_PDF/
+
