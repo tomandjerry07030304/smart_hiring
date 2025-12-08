@@ -3,6 +3,7 @@ Webhook delivery background tasks
 """
 
 from backend.celery_config import celery_app, SafeTask
+from datetime import datetime
 import logging
 
 logger = logging.getLogger(__name__)
@@ -127,7 +128,21 @@ def disable_failing_webhooks(failure_threshold=10):
         
         disabled_count += 1
         
-        # TODO: Notify subscription owner
+        # Notify subscription owner
+        from backend.tasks.notification_tasks import send_notification
+        
+        owner_id = subscription.get('owner_id') or subscription.get('created_by')
+        if owner_id:
+            send_notification.delay(
+                user_id=owner_id,
+                notification_type='webhook_disabled',
+                message=f"Webhook '{subscription.get('name', 'Unknown')}' was disabled due to high failure rate ({failure_threshold} consecutive failures)",
+                data={
+                    'subscription_id': str(subscription['_id']),
+                    'failure_count': subscription['failure_count']
+                }
+            )
+        
         logger.warning(f"Disabled webhook subscription {subscription['_id']} due to high failure rate")
     
     return {'disabled_count': disabled_count}

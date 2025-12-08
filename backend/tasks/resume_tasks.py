@@ -8,36 +8,63 @@ import os
 
 
 @celery_app.task(base=SafeTask, bind=True, name='parse_resume')
-def parse_resume_task(self, resume_url, application_id):
+def parse_resume_task(self, resume_url, application_id, filename='resume.pdf'):
     """
-    Parse resume in background
+    Parse resume in background with advanced NLP
     
     Args:
         resume_url: URL or path to resume file
         application_id: Application ID to update with parsed data
+        filename: Original filename for format detection
     """
     try:
         from backend.db import get_db
+        from backend.services.resume_parser_service import get_resume_parser
+        import requests
         
-        # TODO: Integrate with resume parsing service/library
-        # For now, placeholder implementation
+        # Download resume file
+        if resume_url.startswith('http'):
+            response = requests.get(resume_url, timeout=30)
+            file_content = response.content
+        else:
+            # Local file path
+            with open(resume_url, 'rb') as f:
+                file_content = f.read()
         
-        parsed_data = {
-            'skills': [],
-            'experience_years': 0,
-            'education': [],
-            'certifications': [],
-            'parsed_at': datetime.utcnow()
-        }
+        # Parse resume using advanced NLP parser
+        parser = get_resume_parser()
+        parsed_data = parser.parse_resume(file_content, filename)
         
         # Update application with parsed data
         db = get_db()
         db.applications.update_one(
             {'_id': application_id},
-            {'$set': {'parsed_resume': parsed_data, 'parsing_status': 'completed'}}
+            {
+                '$set': {
+                    'parsed_resume': parsed_data,
+                    'parsing_status': 'completed',
+                    'parsed_at': datetime.utcnow()
+                }
+            }
         )
         
-        return {'status': 'success', 'application_id': str(application_id)}
+        # Calculate job match if job_id is available
+        application = db.applications.find_one({'_id': application_id})
+        if application and 'job_id' in application:
+            job = db.jobs.find_one({'_id': application['job_id']})
+            if job:
+                match_result = parser.calculate_job_match(parsed_data, {
+                    'required_skills': job.get('required_skills', []),
+                    'min_experience_years': job.get('min_experience_years', 0),
+                    'min_education_level': job.get('min_education_level', 0)
+                })
+                
+                db.applications.update_one(
+                    {'_id': application_id},
+                    {'$set': {'job_match_score': match_result}}
+                )
+        
+        return {'status': 'success', 'application_id': str(application_id), 'skills_found': len(parsed_data.get('skills', []))}
         
     except Exception as e:
         # Update parsing status

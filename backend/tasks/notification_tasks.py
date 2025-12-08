@@ -9,7 +9,7 @@ from datetime import datetime
 @celery_app.task(base=SafeTask, name='send_notification')
 def send_notification(user_id, notification_type, message, data=None):
     """
-    Send in-app notification
+    Send in-app notification with WebSocket support
     
     Args:
         user_id: User ID to notify
@@ -18,6 +18,7 @@ def send_notification(user_id, notification_type, message, data=None):
         data: Additional data
     """
     from backend.db import get_db
+    from backend.services.websocket_service import get_websocket_manager
     
     db = get_db()
     notification = {
@@ -30,10 +31,22 @@ def send_notification(user_id, notification_type, message, data=None):
     }
     
     result = db.notifications.insert_one(notification)
+    notification_id = str(result.inserted_id)
     
-    # TODO: Send real-time notification via WebSocket
+    # Send real-time notification via WebSocket
+    ws_manager = get_websocket_manager()
+    if ws_manager:
+        notification_data = data.copy() if data else {}
+        notification_data['notification_id'] = notification_id
+        ws_manager.send_notification(
+            user_id=user_id,
+            notification_type=notification_type,
+            title=notification_type.replace('_', ' ').title(),
+            message=message,
+            data=notification_data
+        )
     
-    return {'status': 'sent', 'notification_id': str(result.inserted_id)}
+    return {'status': 'sent', 'notification_id': notification_id}
 
 
 @celery_app.task(base=SafeTask, name='notify_new_application')
