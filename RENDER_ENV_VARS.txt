@@ -1,0 +1,81 @@
+# ============================================================================
+# RENDER.COM ENVIRONMENT VARIABLES
+# Copy-paste these into Render dashboard → Environment → Add Environment Variable
+# ============================================================================
+
+# ===== PYTHON & FLASK CONFIGURATION =====
+PYTHON_VERSION=3.10.13
+FLASK_ENV=production
+APP_ENV=production
+FLASK_DEBUG=False
+
+# ===== MONGODB ATLAS (SSL COMPATIBLE) =====
+MONGODB_URI=mongodb+srv://sridattayedida_db_user:arwzxa7ycESDrwjX@cluster0.jpgz6yv.mongodb.net/smart-hiring1?retryWrites=true&w=majority&ssl=true&ssl_cert_reqs=CERT_NONE
+DB_NAME=smart-hiring1
+
+# ===== SECURITY KEYS (CRITICAL - DO NOT SHARE) =====
+SECRET_KEY=f15431daebfa1ec1a002f9a8b905862fc68de3db7a60288248334d4dab3448f7
+JWT_SECRET_KEY=eaeea7bfbe1183e1211f7a22a68781dd4dfaa75dddb473e1f6301a65403dba02
+ENCRYPTION_KEY=_1sla48xUBjOlY2yYgS5CmlVvNs3kQbILrJhvmiLI10=
+
+# ===== JWT CONFIGURATION =====
+JWT_ACCESS_TOKEN_EXPIRES=3600
+
+# ===== APPLICATION SETTINGS =====
+LOG_LEVEL=INFO
+MAX_CONTENT_LENGTH=16777216
+DEMOGRAPHIC_PARITY_THRESHOLD=0.1
+EQUAL_OPPORTUNITY_THRESHOLD=0.1
+
+# ===== ADMIN CREDENTIALS =====
+ADMIN_USER=admin
+ADMIN_PASSWORD=changeme_use_strong_password
+
+# ===== ALLOWED ORIGINS & DOMAINS =====
+ALLOWED_ORIGINS=http://localhost:3000,http://localhost:5000
+AUTHORIZED_DOMAINS=localhost,yourdomain.com
+DEPLOYMENT_DOMAIN=localhost
+
+# ===== FEATURE FLAGS =====
+ENABLE_ML_FEATURES=true
+SKIP_LICENSE_CHECK=true
+MODEL_PATH=./ml_models/
+
+# ===== EMAIL CONFIGURATION (OPTIONAL) =====
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+SMTP_USER=sridattayedida@gmail.com
+SMTP_PASSWORD=your-gmail-app-password
+FROM_EMAIL=sridattayedida@gmail.com
+FROM_NAME=Smart Hiring System
+EMAIL_ENABLED=false
+
+# ===== LINKEDIN API (OPTIONAL) =====
+LINKEDIN_CLIENT_ID=your-linkedin-client-id
+LINKEDIN_CLIENT_SECRET=your-linkedin-client-secret
+LINKEDIN_REDIRECT_URI=http://localhost:5000/api/auth/linkedin/callback
+
+# ===== LOGGING CONFIGURATION =====
+LOG_FILE=logs/app.log
+LOG_BACKUP_COUNT=5
+LOG_MAX_SIZE=10485760
+
+# ===== APP METADATA =====
+APP_NAME=SmartHiringSystem
+APP_VERSION=1.0.0
+
+# ===== AIF360 MICROSERVICE (ADD AFTER DEPLOYING AIF360) =====
+# AIF360_SERVICE_URL=https://aif360-engine.onrender.com
+
+# ===== FRONTEND URL (UPDATE AFTER RENDER DEPLOYMENT) =====
+# FRONTEND_URL=https://smart-hiring-backend.onrender.com
+
+# ============================================================================
+# INSTRUCTIONS:
+# 1. Go to Render dashboard
+# 2. Select your service
+# 3. Go to "Environment" tab
+# 4. Click "Add Environment Variable"
+# 5. Copy-paste each KEY=VALUE pair (excluding comments)
+# 6. Click "Save Changes"
+# ============================================================================
