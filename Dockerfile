@@ -4,7 +4,7 @@
 # ============================================================================
 
 # Multi-stage build for Smart Hiring System Backend
-FROM python:3.11-slim as builder
+FROM python:3.10-slim as builder
 
 # Set working directory
 WORKDIR /app
@@ -25,7 +25,7 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir --user -r requirements.txt
 
 # Final stage
-FROM python:3.11-slim
+FROM python:3.10-slim
 
 # Install CA certificates for SSL/TLS
 RUN apt-get update && apt-get install -y --no-install-recommends \
