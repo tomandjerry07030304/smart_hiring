@@ -29,55 +29,73 @@ def validate_email(email):
 def register():
     """Register a new user (candidate or recruiter)"""
     try:
+        print("📝 Registration attempt started")
         data = request.get_json()
+        print(f"📥 Received registration data: {data}")
         
         # Validate required fields
         required_fields = ['email', 'password', 'full_name', 'role']
         for field in required_fields:
             if field not in data:
+                print(f"❌ Missing field: {field}")
                 return jsonify({'error': f'Missing required field: {field}'}), 400
         
         # Validate and sanitize email
         email = sanitizer.sanitize_email(data.get('email', ''))
         if not email:
+            print("❌ Invalid email format after sanitization")
             return jsonify({'error': 'Invalid email format'}), 400
         
         password = data['password']
         full_name = data['full_name'].strip()
         role = data['role'].lower()
         
+        # Map 'company' to 'recruiter' if sent
+        if role == 'company':
+            role = 'recruiter'
+        
+        print(f"📧 Email: {email}, Role: {role}")
+        
         # Validate email
         if not validate_email(email):
+            print("❌ Email validation failed")
             return jsonify({'error': 'Invalid email format'}), 400
         
         # Validate role
         if role not in ['candidate', 'recruiter', 'admin']:
+            print(f"❌ Invalid role: {role}")
             return jsonify({'error': 'Invalid role. Must be candidate, recruiter, or admin'}), 400
         
         # Validate password strength (minimum 8 chars, complexity requirements)
         if len(password) < 8:
+            print("❌ Password too short")
             return jsonify({'error': 'Password must be at least 8 characters'}), 400
         
         # Check password complexity
         has_upper = any(c.isupper() for c in password)
         has_lower = any(c.islower() for c in password)
         has_digit = any(c.isdigit() for c in password)
-        has_special = any(c in '!@#$%^&*()_+-=[]{}|;:,.<>?' for c in password)
         
         if not (has_upper and has_lower and has_digit):
+            print("❌ Password complexity failed")
             return jsonify({'error': 'Password must contain uppercase, lowercase, and numbers'}), 400
         
+        print("✅ Validation passed, connecting to database...")
         db = get_db()
         users_collection = db['users']
         
         # Check if user already exists
+        print(f"🔍 Checking if email exists: {email}")
         existing_user = users_collection.find_one({'email': email})
         if existing_user:
+            print(f"❌ Email already registered: {email}")
             return jsonify({'error': 'Email already registered'}), 409
         
+        print("🔒 Hashing password...")
         # Hash password
         password_hash = bcrypt.generate_password_hash(password).decode('utf-8')
         
+        print("👤 Creating user object...")
         # Create user
         user = User(
             email=email,
@@ -89,15 +107,20 @@ def register():
             github_url=data.get('github_url', '')
         )
         
+        print("💾 Inserting user into database...")
         result = users_collection.insert_one(user.to_dict())
         user_id = str(result.inserted_id)
+        print(f"✅ User created with ID: {user_id}")
         
         # If candidate, create candidate profile
         if role == 'candidate':
+            print("📄 Creating candidate profile...")
             candidates_collection = db['candidates']
             candidate = Candidate(user_id=user_id)
             candidates_collection.insert_one(candidate.to_dict())
+            print("✅ Candidate profile created")
         
+        print("🎫 Generating access token...")
         # Generate JWT token
         access_token = create_access_token(identity={'user_id': user_id, 'role': role})
         
@@ -107,6 +130,7 @@ def register():
         except Exception as email_error:
             print(f"⚠️ Welcome email failed: {email_error}")
         
+        print(f"🎉 Registration successful for {email}")
         return jsonify({
             'message': 'User registered successfully',
             'user_id': user_id,
@@ -119,6 +143,9 @@ def register():
         }), 201
         
     except Exception as e:
+        print(f"❌ Registration error: {str(e)}")
+        import traceback
+        traceback.print_exc()
         return jsonify({'error': str(e)}), 500
 
 @bp.route('/login', methods=['POST'])
