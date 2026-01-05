@@ -84,6 +84,70 @@ def set_security_headers(response):
 db = Database()
 db.connect(env)
 
+# Auto-create test accounts on startup (for production deployment)
+def create_default_accounts():
+    """Create default test accounts if they don't exist"""
+    try:
+        from werkzeug.security import generate_password_hash
+        from datetime import datetime
+        
+        users_collection = db.get_collection('users')
+        if users_collection is None:
+            print("⚠️ Could not get users collection")
+            return
+        
+        default_accounts = [
+            {
+                'email': 'admin@smarthiring.com',
+                'password': generate_password_hash('Admin@123'),
+                'name': 'System Admin',
+                'role': 'admin',
+                'is_active': True,
+                'created_at': datetime.utcnow(),
+                'email_verified': True
+            },
+            {
+                'email': 'recruiter@test.com',
+                'password': generate_password_hash('password123'),
+                'name': 'Test Recruiter',
+                'role': 'company',
+                'company_name': 'Test Company Inc.',
+                'is_active': True,
+                'created_at': datetime.utcnow(),
+                'email_verified': True
+            },
+            {
+                'email': 'candidate@test.com',
+                'password': generate_password_hash('password123'),
+                'name': 'Test Candidate',
+                'role': 'candidate',
+                'is_active': True,
+                'created_at': datetime.utcnow(),
+                'email_verified': True
+            }
+        ]
+        
+        created_count = 0
+        for account in default_accounts:
+            existing = users_collection.find_one({'email': account['email']})
+            if not existing:
+                users_collection.insert_one(account)
+                print(f"✅ Created default account: {account['email']}")
+                created_count += 1
+            else:
+                print(f"ℹ️ Account already exists: {account['email']}")
+        
+        if created_count > 0:
+            print(f"🎉 Created {created_count} default account(s)")
+        else:
+            print("ℹ️ All default accounts already exist")
+            
+    except Exception as e:
+        print(f"⚠️ Could not create default accounts: {e}")
+
+# Create default accounts on startup
+create_default_accounts()
+
 # Register blueprints (API routes)
 app.register_blueprint(auth_routes.bp, url_prefix='/api/auth')
 app.register_blueprint(job_routes.bp, url_prefix='/api/jobs')
