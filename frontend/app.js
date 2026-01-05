@@ -7,21 +7,57 @@ let currentUser = null;
 let currentRole = null;
 let authToken = null;
 
-// Toggle password visibility
+// Toggle password visibility with panda animation
 function togglePasswordVisibility(inputId, button) {
     const input = document.getElementById(inputId);
     const eyeIcon = button.querySelector('.eye-icon');
     const eyeOffIcon = button.querySelector('.eye-off-icon');
+    const pandaContainer = document.getElementById('pandaContainer');
     
     if (input.type === 'password') {
         input.type = 'text';
         eyeIcon.style.display = 'none';
         eyeOffIcon.style.display = 'block';
+        // Panda opens eyes (removes paws)
+        if (pandaContainer) {
+            pandaContainer.classList.remove('panda-hiding');
+            pandaContainer.classList.add('panda-peeking');
+        }
     } else {
         input.type = 'password';
         eyeIcon.style.display = 'block';
         eyeOffIcon.style.display = 'none';
+        // Panda covers eyes with paws
+        if (pandaContainer) {
+            pandaContainer.classList.remove('panda-peeking');
+            pandaContainer.classList.add('panda-hiding');
+        }
     }
+}
+
+// Panda reacts when user focuses on password field
+function setupPandaAnimation() {
+    const passwordInput = document.getElementById('loginPassword');
+    const pandaContainer = document.getElementById('pandaContainer');
+    
+    if (passwordInput && pandaContainer) {
+        passwordInput.addEventListener('focus', () => {
+            pandaContainer.classList.add('panda-hiding');
+        });
+        
+        passwordInput.addEventListener('blur', () => {
+            if (passwordInput.type === 'password') {
+                // Keep hiding if password is hidden
+            } else {
+                pandaContainer.classList.remove('panda-hiding');
+            }
+        });
+    }
+}
+
+// Initialize panda animation when login page is shown
+function initPandaOnLogin() {
+    setTimeout(setupPandaAnimation, 100);
 }
 
 // Modern Notification System
@@ -126,13 +162,39 @@ function initializeApp() {
             <div class="auth-container">
                 <div class="auth-card">
                     <button class="back-btn" onclick="showRoleSelection()">← Back</button>
-                    <div class="logo">
-                        <svg width="64" height="64" viewBox="0 0 64 64">
-                            <circle cx="32" cy="32" r="30" fill="#4F46E5"/>
-                            <path d="M32 16L40 28H24L32 16Z" fill="white"/>
-                            <rect x="22" y="30" width="20" height="18" rx="2" fill="white"/>
-                        </svg>
+                    
+                    <!-- Cute Panda Animation -->
+                    <div class="panda-container" id="pandaContainer">
+                        <div class="panda">
+                            <!-- Ears -->
+                            <div class="ear ear-left"></div>
+                            <div class="ear ear-right"></div>
+                            <!-- Face -->
+                            <div class="face">
+                                <!-- Eye patches -->
+                                <div class="eye-patch eye-patch-left"></div>
+                                <div class="eye-patch eye-patch-right"></div>
+                                <!-- Eyes -->
+                                <div class="eye eye-left">
+                                    <div class="pupil"></div>
+                                </div>
+                                <div class="eye eye-right">
+                                    <div class="pupil"></div>
+                                </div>
+                                <!-- Nose -->
+                                <div class="nose"></div>
+                                <!-- Mouth -->
+                                <div class="mouth"></div>
+                                <!-- Blush -->
+                                <div class="blush blush-left"></div>
+                                <div class="blush blush-right"></div>
+                            </div>
+                            <!-- Paws (for covering eyes) -->
+                            <div class="paw paw-left" id="pawLeft"></div>
+                            <div class="paw paw-right" id="pawRight"></div>
+                        </div>
                     </div>
+                    
                     <h1 id="loginTitle">Login</h1>
                     <p class="subtitle" id="loginSubtitle"></p>
                     <form id="loginForm" onsubmit="handleLogin(event)">
@@ -316,6 +378,7 @@ function selectRole(role) {
     }
     
     showPage('loginPage');
+    initPandaOnLogin(); // Initialize panda animation
 }
 
 function showLogin() {
