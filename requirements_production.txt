@@ -1,0 +1,148 @@
+# ===============================================
+# ULTRA PRO MAX: Production-Ready ML/AI Requirements
+# Smart Hiring - Automated & Fair AI-Based Recruitment System
+# ===============================================
+
+# ==================== Backend Framework ====================
+flask==3.0.0
+flask-cors==4.0.0
+flask-jwt-extended==4.6.0
+flask-bcrypt==1.0.1
+flask-socketio==5.3.5
+python-socketio==5.10.0
+gunicorn==21.2.0
+eventlet==0.33.3
+
+# ==================== Database ====================
+# MongoDB for document storage (resumes, logs, JSON skill graphs)
+pymongo==4.3.3
+
+# PostgreSQL support for structured fairness data (Optional but recommended)
+psycopg2-binary==2.9.9  # PostgreSQL adapter
+
+# ==================== Redis & Task Queue ====================
+redis==5.0.1
+celery==5.3.4
+flower==2.0.1  # Celery monitoring UI
+
+# ==================== Security & Authentication ====================
+cryptography==41.0.7
+pyotp==2.9.0  # Two-factor authentication
+qrcode[pil]==7.4.2
+PyJWT==2.8.0
+
+# ==================== API & Web Services ====================
+requests>=2.32.3
+python-dotenv==1.0.0
+marshmallow==3.20.1  # Serialization
+apispec==6.3.1  # OpenAPI/Swagger
+apispec-webframeworks==1.0.0
+
+# ==================== Email & Scheduling ====================
+apscheduler==3.10.4
+python-dateutil==2.8.2
+
+# ==================== ADVANCED NLP & MACHINE LEARNING ====================
+
+# --- Core ML Libraries ---
+numpy==1.26.4
+pandas==2.2.3
+scikit-learn==1.5.2
+
+# --- NLP Engines ---
+spacy==3.7.2  # Core spaCy library
+# Run after installation: python -m spacy download en_core_web_trf
+# en_core_web_trf = Transformer-based model (BERT) for production
+
+# Alternative lightweight model (already installed):
+# python -m spacy download en_core_web_sm
+
+# --- Advanced Transformers & LLMs ---
+transformers==4.36.2  # Hugging Face transformers (BERT, GPT, T5)
+torch==2.1.2  # PyTorch for deep learning
+sentence-transformers==2.2.2  # Semantic similarity using SBERT
+
+# --- Text Processing ---
+nltk==3.8.1  # Natural Language Toolkit
+# Run after: python -m nltk.downloader punkt stopwords wordnet
+
+# --- Resume Parsing ---
+PyPDF2==3.0.1
+python-docx==1.1.0
+pdfminer.six==20221105  # Advanced PDF extraction
+pypdf==3.17.4  # Modern PDF library
+
+# ==================== FAIRNESS & BIAS MITIGATION ====================
+
+# --- IBM AI Fairness 360 (AIF360) ---
+# Note: AIF360 has heavy dependencies - use microservice architecture
+# aif360==0.5.0  # Uncomment for local installation
+# fairlearn==0.9.0  # Microsoft Fairlearn (alternative)
+
+# Our custom lightweight fairness engine is already implemented
+# See: backend/services/fairness_engine.py
+
+# ==================== VECTOR DATABASE (Optional - Advanced) ====================
+# faiss-cpu==1.7.4  # Facebook AI Similarity Search
+# pinecone-client==2.2.4  # Pinecone vector DB
+
+# ==================== DATA VISUALIZATION & ANALYTICS ====================
+matplotlib==3.8.2
+seaborn==0.13.0
+plotly==5.18.0  # Interactive charts for dashboards
+
+# ==================== MONITORING & OBSERVABILITY ====================
+sentry-sdk==1.39.2  # Error tracking
+psutil==5.9.6  # System monitoring
+
+# ==================== LINKEDIN API INTEGRATION ====================
+requests-oauthlib==1.3.1  # OAuth for LinkedIn
+oauthlib==3.2.2
+
+# ==================== TESTING ====================
+pytest==7.4.3
+pytest-flask==1.3.0
+pytest-cov==4.1.0  # Coverage reporting
+pytest-mock==3.12.0
+
+# ==================== API DOCUMENTATION ====================
+flasgger==0.9.7.1  # Swagger UI for Flask
+
+# ==================== FILE & DATA HANDLING ====================
+openpyxl==3.1.2  # Excel file support
+xlrd==2.0.1  # Excel reading
+python-magic==0.4.27  # File type detection
+
+# ==================== UTILITIES ====================
+python-slugify==8.0.1
+faker==20.1.0  # Generate synthetic test data
+tqdm==4.66.1  # Progress bars
+colorama==0.4.6  # Colored terminal output
+
+# ==================== OPTIONAL: ADVANCED FEATURES ====================
+# langchain==0.1.0  # LLM orchestration
+# openai==1.6.1  # GPT integration
+# anthropic==0.8.1  # Claude API
+
+# ==================== DEPLOYMENT PLATFORMS ====================
+# Render
+# Railway
+# AWS (boto3==1.34.14)
+# Azure (azure-storage-blob==12.19.0)
+
+# ==================== NOTES ====================
+# 1. Install spaCy models after pip install:
+#    python -m spacy download en_core_web_trf  (production - 500MB)
+#    python -m spacy download en_core_web_sm   (lightweight - 12MB)
+#
+# 2. Install NLTK data:
+#    python -m nltk.downloader punkt stopwords wordnet averaged_perceptron_tagger
+#
+# 3. For AIF360 (if needed), use separate microservice due to size:
+#    See: aif360-service/requirements.txt
+#
+# 4. PyTorch: Use CPU version for cloud deployments
+#    For GPU: torch==2.1.2+cu118
+#
+# 5. Transformers models will auto-download on first use
+#    Ensure ~2GB disk space for model cache

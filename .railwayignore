@@ -1,5 +1,5 @@
-# Railway Deployment - Main Flask App
-# Exclude unnecessary files from Railway deployment
+# Railway Deployment - Smart Hiring System
+# Exclude unnecessary files to optimize deployment
 
 # Python cache
 __pycache__/
@@ -13,17 +13,20 @@ __pycache__/
 dist/
 build/
 
-# Tests
+# Tests (not needed in production)
 tests/
 test_*.py
 *_test.py
 .pytest_cache/
+pytest.ini
 
-# Documentation (keep README)
+# Documentation (not needed in production)
 *.md
 !README.md
 docs/
 Documentation_Package/
+Documentation_Package_DOCX/
+Documentation_Package_PDF/
 
 # IDE
 .vscode/
@@ -41,12 +44,13 @@ Documentation_Package/
 venv/
 .venv/
 env/
+backend/.venv/
 
 # Logs
 logs/
 *.log
 
-# User uploads
+# User uploads (use cloud storage)
 uploads/
 backend/uploads/
 

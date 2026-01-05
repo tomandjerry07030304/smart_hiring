@@ -14,7 +14,7 @@ from flask_cors import CORS
 from flask_jwt_extended import JWTManager
 from config.config import config
 from backend.models.database import Database
-from backend.routes import auth_routes, job_routes, candidate_routes, company_routes, email_preferences_routes, assessment_routes, audit_routes, dsr_routes, dashboard_routes, ai_interview_routes
+from backend.routes import auth_routes, job_routes, candidate_routes, company_routes, email_preferences_routes, assessment_routes, audit_routes, dsr_routes, dashboard_routes, ai_interview_routes, admin_routes
 # Import enhanced v2 routes
 try:
     from backend.routes import ai_interview_routes_v2
@@ -95,6 +95,7 @@ app.register_blueprint(audit_routes.bp, url_prefix='/api/audit')
 app.register_blueprint(dsr_routes.bp, url_prefix='/api/dsr')
 app.register_blueprint(dashboard_routes.bp, url_prefix='/api/dashboard')
 app.register_blueprint(ai_interview_routes.bp, url_prefix='/api/ai-interview')
+app.register_blueprint(admin_routes.bp, url_prefix='/api/admin')
 
 # Register V2 routes if available (LinkedIn, dynamic questions, fresher scoring)
 if V2_ROUTES_AVAILABLE:

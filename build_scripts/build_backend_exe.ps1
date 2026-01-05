@@ -21,14 +21,14 @@ $VenvDir = Join-Path $ProjectRoot ".venv"
 $DistDir = Join-Path $ProjectRoot $OutputDir
 $BuildDir = Join-Path $ProjectRoot "build"
 
-Write-Host "📁 Project Root: $ProjectRoot" -ForegroundColor Yellow
-Write-Host "📁 Backend Dir: $BackendDir" -ForegroundColor Yellow
-Write-Host "📁 Output Dir: $DistDir" -ForegroundColor Yellow
+Write-Host "Project Root: $ProjectRoot" -ForegroundColor Yellow
+Write-Host "Backend Dir: $BackendDir" -ForegroundColor Yellow
+Write-Host "Output Dir: $DistDir" -ForegroundColor Yellow
 Write-Host ""
 
 # Clean previous builds if requested
 if ($Clean) {
-    Write-Host "🧹 Cleaning previous builds..." -ForegroundColor Yellow
+    Write-Host "Cleaning previous builds..." -ForegroundColor Yellow
     if (Test-Path $DistDir) {
         Remove-Item $DistDir -Recurse -Force
         Write-Host "   ✓ Removed dist directory" -ForegroundColor Green
@@ -42,27 +42,27 @@ if ($Clean) {
 
 # Create virtual environment if it doesn't exist
 if (-not (Test-Path $VenvDir)) {
-    Write-Host "🔧 Creating virtual environment..." -ForegroundColor Yellow
+    Write-Host "Creating virtual environment..." -ForegroundColor Yellow
     python -m venv $VenvDir
     Write-Host "   ✓ Virtual environment created" -ForegroundColor Green
     Write-Host ""
 }
 
 # Activate virtual environment
-Write-Host "🔌 Activating virtual environment..." -ForegroundColor Yellow
+Write-Host "Activating virtual environment..." -ForegroundColor Yellow
 $ActivateScript = Join-Path $VenvDir "Scripts\Activate.ps1"
 & $ActivateScript
 Write-Host "   ✓ Virtual environment activated" -ForegroundColor Green
 Write-Host ""
 
 # Upgrade pip
-Write-Host "📦 Upgrading pip..." -ForegroundColor Yellow
+Write-Host "Upgrading pip..." -ForegroundColor Yellow
 python -m pip install --upgrade pip --quiet
 Write-Host "   ✓ Pip upgraded" -ForegroundColor Green
 Write-Host ""
 
 # Install dependencies
-Write-Host "📦 Installing dependencies..." -ForegroundColor Yellow
+Write-Host "Installing dependencies..." -ForegroundColor Yellow
 $RequirementsFile = Join-Path $BackendDir "requirements.txt"
 if (Test-Path $RequirementsFile) {
     pip install -r $RequirementsFile --quiet
@@ -74,7 +74,7 @@ if (Test-Path $RequirementsFile) {
 Write-Host ""
 
 # Install PyInstaller
-Write-Host "📦 Installing PyInstaller..." -ForegroundColor Yellow
+Write-Host "Installing PyInstaller..." -ForegroundColor Yellow
 pip install pyinstaller --quiet
 Write-Host "   ✓ PyInstaller installed" -ForegroundColor Green
 Write-Host ""
@@ -82,12 +82,12 @@ Write-Host ""
 # Verify main.py exists
 $MainPy = Join-Path $BackendDir "main.py"
 if (-not (Test-Path $MainPy)) {
-    Write-Host "❌ Error: main.py not found in backend directory" -ForegroundColor Red
+    Write-Host "Error: main.py not found in backend directory" -ForegroundColor Red
     exit 1
 }
 
 # Build executable with PyInstaller
-Write-Host "🔨 Building executable with PyInstaller..." -ForegroundColor Cyan
+Write-Host "Building executable with PyInstaller..." -ForegroundColor Cyan
 Write-Host "   This may take several minutes..." -ForegroundColor Yellow
 Write-Host ""
 
@@ -122,7 +122,7 @@ try {
     Write-Host "   ✓ Executable built successfully" -ForegroundColor Green
 } catch {
     Write-Host ""
-    Write-Host "❌ Error building executable: $_" -ForegroundColor Red
+    Write-Host "Error building executable: $_" -ForegroundColor Red
     Set-Location $ProjectRoot
     exit 1
 }
@@ -131,7 +131,7 @@ Set-Location $ProjectRoot
 
 # Copy additional files to dist
 Write-Host ""
-Write-Host "📋 Copying additional files..." -ForegroundColor Yellow
+Write-Host "Copying additional files..." -ForegroundColor Yellow
 
 $BackendDistDir = Join-Path $DistDir "backend"
 if (-not (Test-Path $BackendDistDir)) {
@@ -170,7 +170,7 @@ if (-not (Test-Path $LogsDir)) {
 Write-Host ""
 
 # Test the executable
-Write-Host "🧪 Testing executable..." -ForegroundColor Cyan
+Write-Host "Testing executable..." -ForegroundColor Cyan
 $ExePath = Join-Path $BackendDistDir "smart_hiring_backend.exe"
 
 if (Test-Path $ExePath) {
@@ -178,21 +178,21 @@ if (Test-Path $ExePath) {
     
     # Get file size
     $FileSize = (Get-Item $ExePath).Length / 1MB
-    Write-Host "   📊 File size: $([math]::Round($FileSize, 2)) MB" -ForegroundColor Yellow
+    Write-Host "   File size: $([math]::Round($FileSize, 2)) MB" -ForegroundColor Yellow
     
     Write-Host ""
     Write-Host "   To test the executable, run:" -ForegroundColor Yellow
     Write-Host "   $ExePath" -ForegroundColor Cyan
 } else {
-    Write-Host "   ❌ Executable not found!" -ForegroundColor Red
+    Write-Host "   Executable not found!" -ForegroundColor Red
     exit 1
 }
 
 Write-Host ""
 Write-Host "========================================" -ForegroundColor Green
-Write-Host "✅ Build completed successfully!" -ForegroundColor Green
+Write-Host "Build completed successfully!" -ForegroundColor Green
 Write-Host "========================================" -ForegroundColor Green
 Write-Host ""
-Write-Host "📦 Output location: $BackendDistDir" -ForegroundColor Cyan
-Write-Host "🚀 Run the executable: $ExePath" -ForegroundColor Cyan
+Write-Host "Output location: $BackendDistDir" -ForegroundColor Cyan
+Write-Host "Run the executable: $ExePath" -ForegroundColor Cyan
 Write-Host ""
