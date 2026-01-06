@@ -1,5 +1,18 @@
 """
 Celery configuration for background task processing
+
+IMPORTANT STATUS (Updated 2026-01-06):
+======================================
+This async infrastructure EXISTS but is NOT CURRENTLY USED in production.
+Email sending is currently SYNCHRONOUS via email_service.py.
+
+To enable async email processing:
+1. Ensure Redis is running and accessible
+2. Start Celery workers: celery -A backend.celery_config worker --loglevel=info
+3. Update routes to use email_tasks.send_email_task.delay() instead of email_service.send_*()
+
+Current behavior: SYNCHRONOUS (honest about this)
+Future capability: ASYNCHRONOUS (when Redis + workers are configured)
 """
 
 from celery import Celery
@@ -8,6 +21,9 @@ import os
 
 # Redis connection
 REDIS_URL = os.getenv('REDIS_URL', 'redis://localhost:6379/0')
+
+# Check if async is actually enabled and Redis is configured
+ASYNC_ENABLED = os.getenv('ENABLE_BACKGROUND_WORKERS', 'false').lower() == 'true'
 
 # Initialize Celery
 celery_app = Celery(

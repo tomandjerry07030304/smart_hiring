@@ -14,7 +14,7 @@ from flask_cors import CORS
 from flask_jwt_extended import JWTManager
 from config.config import config
 from backend.models.database import Database
-from backend.routes import auth_routes, job_routes, candidate_routes, company_routes, email_preferences_routes, assessment_routes, audit_routes, dsr_routes, dashboard_routes, ai_interview_routes, admin_routes
+from backend.routes import auth_routes, job_routes, candidate_routes, company_routes, email_preferences_routes, assessment_routes, audit_routes, dsr_routes, dashboard_routes, ai_interview_routes, admin_routes, google_oauth_routes
 # Import enhanced v2 routes
 try:
     from backend.routes import ai_interview_routes_v2
@@ -150,6 +150,7 @@ create_default_accounts()
 
 # Register blueprints (API routes)
 app.register_blueprint(auth_routes.bp, url_prefix='/api/auth')
+app.register_blueprint(google_oauth_routes.bp, url_prefix='/api/auth')  # Google OAuth under /api/auth
 app.register_blueprint(job_routes.bp, url_prefix='/api/jobs')
 app.register_blueprint(candidate_routes.bp, url_prefix='/api/candidates')
 app.register_blueprint(company_routes.bp, url_prefix='/api/company')

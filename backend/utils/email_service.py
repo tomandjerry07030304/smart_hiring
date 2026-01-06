@@ -1,6 +1,19 @@
 """
 Email Notification Service
 Handles sending professional email notifications for various events
+
+EXECUTION MODEL: SYNCHRONOUS
+============================
+This service sends emails SYNCHRONOUSLY (blocking).
+- Pros: Simple, no Redis/Celery dependency, immediate feedback
+- Cons: Slower API responses, not scalable for high volume
+
+For ASYNCHRONOUS email sending:
+- Use backend/tasks/email_tasks.py with Celery workers
+- Requires Redis running and ENABLE_BACKGROUND_WORKERS=true
+- Routes must call send_email_task.delay() instead of email_service methods
+
+Updated: 2026-01-06 - Made behavior explicit and honest
 """
 
 import os
@@ -20,31 +33,56 @@ class EmailService:
         self.smtp_password = os.getenv('SMTP_PASSWORD', '')
         self.from_email = os.getenv('FROM_EMAIL', 'noreply@smarthiring.com')
         self.from_name = os.getenv('FROM_NAME', 'Smart Hiring System')
-        self.enabled = os.getenv('EMAIL_ENABLED', 'false').lower() == 'true'
+        # FIX: Default to TRUE - emails ENABLED by default in all non-test environments
+        env = os.getenv('FLASK_ENV', 'production')
+        self.enabled = os.getenv('EMAIL_ENABLED', 'true').lower() == 'true' and env != 'testing'
+        self._validate_configuration()
+    
+    def _validate_configuration(self):
+        """Validate email configuration on startup and log status"""
+        issues = []
+        
+        if not self.smtp_username:
+            issues.append("SMTP_USERNAME not set")
+        elif 'your-' in self.smtp_username or 'your@' in self.smtp_username:
+            issues.append("SMTP_USERNAME contains placeholder value")
+            
+        if not self.smtp_password:
+            issues.append("SMTP_PASSWORD not set")
+        elif 'your-' in self.smtp_password:
+            issues.append("SMTP_PASSWORD contains placeholder value")
+            
+        if issues:
+            print(f"\n{'='*60}")
+            print(f"⚠️  EMAIL CONFIGURATION WARNING")
+            for issue in issues:
+                print(f"   ❌ {issue}")
+            print(f"\n💡 To fix: Set valid SMTP credentials in .env file")
+            print(f"💡 For Gmail: https://myaccount.google.com/apppasswords")
+            print(f"{'='*60}\n")
+            self.config_valid = False
+        else:
+            print(f"✅ Email service configured: {self.smtp_server}:{self.smtp_port}")
+            self.config_valid = True
         
     def send_email(self, to_email: str, subject: str, html_content: str, text_content: Optional[str] = None) -> bool:
         """Send an email with HTML and optional plain text content"""
-        print(f"\n{'='*60}")
-        print(f"📧 EMAIL SERVICE CALLED")
-        print(f"To: {to_email}")
-        print(f"Subject: {subject}")
-        print(f"Enabled: {self.enabled}")
-        print(f"SMTP Server: {self.smtp_server}:{self.smtp_port}")
-        print(f"SMTP User: {self.smtp_username}")
-        print(f"{'='*60}\n")
+        import logging
+        logger = logging.getLogger(__name__)
         
+        logger.info(f"📧 Email request: to={to_email}, subject={subject}")
+        
+        # FIX: Explicit check - if disabled, log and return False (not silent True)
         if not self.enabled:
-            print(f"⚠️  EMAIL DISABLED - Set EMAIL_ENABLED=true in .env to send emails")
-            print(f"📧 Would send to {to_email}: {subject}")
-            print(f"📝 Content preview: {text_content[:100] if text_content else 'No text content'}...")
-            return True  # Return True so application flow continues
+            logger.warning(f"📧 EMAIL DISABLED by configuration - email NOT sent to {to_email}")
+            print(f"⚠️  EMAIL DISABLED - Set EMAIL_ENABLED=true in .env")
+            return False  # FIX: Return False - be honest about not sending
             
-        if not self.smtp_username or not self.smtp_password or 'your-' in self.smtp_username:
-            print(f"⚠️  SMTP CREDENTIALS NOT CONFIGURED")
-            print(f"📧 Cannot send email to {to_email}")
-            print(f"💡 Configure SMTP_USERNAME and SMTP_PASSWORD in .env file")
-            print(f"💡 For Gmail, use App Password: https://myaccount.google.com/apppasswords")
-            return False
+        # FIX: Validate credentials are real, not placeholders
+        if not self.config_valid:
+            logger.error(f"❌ EMAIL CONFIG INVALID - Cannot send to {to_email}")
+            print(f"❌ SMTP credentials not configured properly - email NOT sent")
+            return False  # FIX: Return False - be honest
             
         try:
             # Create message
@@ -182,6 +220,73 @@ class EmailService:
         
         Log in to review the application.
         
+        Smart Hiring Team
+        """
+        
+        return self.send_email(to_email, subject, html_content, text_content)
+    
+    def send_job_posting_confirmation(self, to_email: str, company_name: str, job_title: str,
+                                       job_id: str, location: str, job_type: str,
+                                       description_summary: str = "") -> bool:
+        """Send job posting confirmation email to company/recruiter"""
+        subject = f"✅ Job Posted Successfully: {job_title}"
+        
+        html_content = self._get_job_posting_template(
+            company_name, job_title, job_id, location, job_type, description_summary
+        )
+        text_content = f"""
+        Hi {company_name},
+        
+        Your job posting has been successfully created!
+        
+        Job Details:
+        - Title: {job_title}
+        - Job ID: {job_id}
+        - Location: {location or 'Not specified'}
+        - Type: {job_type or 'Full-time'}
+        - Status: Active
+        - Posted: {datetime.now().strftime('%B %d, %Y at %I:%M %p')}
+        
+        Your job is now live and visible to candidates.
+        
+        You can manage your posting anytime from your dashboard.
+        
+        Best regards,
+        Smart Hiring Team
+        """
+        
+        return self.send_email(to_email, subject, html_content, text_content)
+    
+    def send_login_confirmation(self, to_email: str, user_name: str, login_time: str = None,
+                                 ip_address: str = None, device_info: str = None) -> bool:
+        """Send login confirmation/security alert email to user"""
+        from datetime import datetime
+        
+        if not login_time:
+            login_time = datetime.now().strftime('%B %d, %Y at %I:%M %p UTC')
+        
+        subject = "🔐 New Login to Your Smart Hiring Account"
+        
+        html_content = self._get_login_confirmation_template(
+            user_name, login_time, ip_address, device_info
+        )
+        text_content = f"""
+        Hi {user_name},
+        
+        We detected a new login to your Smart Hiring account.
+        
+        Login Details:
+        - Time: {login_time}
+        - IP Address: {ip_address or 'Unknown'}
+        - Device: {device_info or 'Unknown'}
+        
+        If this was you, no action is needed.
+        
+        If you didn't log in, please:
+        1. Change your password immediately
+        2. Contact our support team
+        
+        Stay secure!
         Smart Hiring Team
         """
         
@@ -394,6 +499,107 @@ class EmailService:
                 </a>
             </p>
             <p>Best regards,<br><strong>Smart Hiring System</strong></p>
+        """
+        return self._get_base_template(content)
+    
+    def _get_job_posting_template(self, company_name: str, job_title: str, job_id: str,
+                                   location: str, job_type: str, description_summary: str) -> str:
+        """Job posting confirmation template for recruiter/company"""
+        content = f"""
+            <h2>Job Posted Successfully! 🎉</h2>
+            <p>Hi <strong>{company_name}</strong>,</p>
+            <p>Your job posting has been created and is now <strong style="color: #065f46;">LIVE</strong>!</p>
+            
+            <div style="background: #f7fafc; padding: 24px; border-radius: 12px; margin: 24px 0; border-left: 4px solid #4F46E5;">
+                <h3 style="margin: 0 0 16px 0; color: #4F46E5;">{job_title}</h3>
+                <table style="width: 100%; border-collapse: collapse;">
+                    <tr>
+                        <td style="padding: 8px 0; color: #718096; width: 120px;">Job ID:</td>
+                        <td style="padding: 8px 0; font-weight: 600;">{job_id}</td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 8px 0; color: #718096;">Location:</td>
+                        <td style="padding: 8px 0;">{location or 'Remote / Not specified'}</td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 8px 0; color: #718096;">Job Type:</td>
+                        <td style="padding: 8px 0;">{job_type}</td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 8px 0; color: #718096;">Status:</td>
+                        <td style="padding: 8px 0;"><span style="background: #d1fae5; color: #065f46; padding: 4px 12px; border-radius: 4px; font-weight: 600;">Active</span></td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 8px 0; color: #718096;">Posted:</td>
+                        <td style="padding: 8px 0;">{datetime.now().strftime('%B %d, %Y at %I:%M %p')}</td>
+                    </tr>
+                </table>
+                {f'<p style="margin-top: 16px; color: #4a5568;"><strong>Description:</strong><br>{description_summary}</p>' if description_summary else ''}
+            </div>
+            
+            <p><strong>What's Next?</strong></p>
+            <ul>
+                <li>Your job is now visible to all candidates</li>
+                <li>You'll receive email alerts for new applications</li>
+                <li>Review and manage applications from your dashboard</li>
+            </ul>
+            
+            <p>
+                <a href="https://my-project-smart-hiring.onrender.com" class="button">
+                    View Job Posting →
+                </a>
+            </p>
+            <p>Best regards,<br><strong>Smart Hiring Team</strong></p>
+        """
+        return self._get_base_template(content)
+    
+    def _get_login_confirmation_template(self, user_name: str, login_time: str,
+                                          ip_address: str = None, device_info: str = None) -> str:
+        """Login confirmation/security alert template"""
+        content = f"""
+            <h2>New Login Detected 🔐</h2>
+            <p>Hi <strong>{user_name}</strong>,</p>
+            <p>We noticed a new login to your Smart Hiring account.</p>
+            
+            <div style="background: #f0fdf4; padding: 24px; border-radius: 12px; margin: 24px 0; border-left: 4px solid #22c55e;">
+                <h3 style="margin: 0 0 16px 0; color: #166534;">Login Details</h3>
+                <table style="width: 100%; border-collapse: collapse;">
+                    <tr>
+                        <td style="padding: 8px 0; color: #718096; width: 120px;">Time:</td>
+                        <td style="padding: 8px 0; font-weight: 600;">{login_time}</td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 8px 0; color: #718096;">IP Address:</td>
+                        <td style="padding: 8px 0;">{ip_address or 'Not available'}</td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 8px 0; color: #718096;">Device:</td>
+                        <td style="padding: 8px 0;">{device_info or 'Not available'}</td>
+                    </tr>
+                </table>
+            </div>
+            
+            <p><strong>Was this you?</strong></p>
+            <p style="color: #065f46;">✅ If yes, you can safely ignore this email.</p>
+            
+            <div style="background: #fef2f2; padding: 16px; border-radius: 8px; margin: 16px 0;">
+                <p style="margin: 0; color: #991b1b;">
+                    <strong>⚠️ If this wasn't you:</strong><br>
+                    Someone may have access to your account. Please take these steps immediately:
+                </p>
+                <ol style="color: #991b1b; margin: 8px 0;">
+                    <li>Change your password right away</li>
+                    <li>Review your recent account activity</li>
+                    <li>Contact our support team</li>
+                </ol>
+            </div>
+            
+            <p>
+                <a href="https://my-project-smart-hiring.onrender.com" class="button">
+                    Go to Dashboard →
+                </a>
+            </p>
+            <p>Stay secure!<br><strong>Smart Hiring Team</strong></p>
         """
         return self._get_base_template(content)
 

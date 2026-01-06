@@ -6,6 +6,7 @@ from bson import ObjectId
 from backend.models.database import get_db
 from backend.models.job import Job, Application
 from backend.utils.matching import extract_skills
+from backend.utils.email_service import email_service
 
 bp = Blueprint('jobs', __name__)
 
@@ -63,12 +64,34 @@ def create_job():
         db = get_db()
         jobs_collection = db['jobs']
         result = jobs_collection.insert_one(job.to_dict())
+        job_id = str(result.inserted_id)
         
-        print(f"✅ Job created with ID: {result.inserted_id}")
+        print(f"✅ Job created with ID: {job_id}")
+        
+        # Send job posting confirmation email to recruiter
+        email_sent = False
+        try:
+            users_collection = db['users']
+            recruiter = users_collection.find_one({'_id': ObjectId(user_id)})
+            if recruiter:
+                email_sent = email_service.send_job_posting_confirmation(
+                    to_email=recruiter.get('email'),
+                    company_name=data.get('company_name', recruiter.get('full_name', 'Recruiter')),
+                    job_title=data['title'],
+                    job_id=job_id,
+                    location=data.get('location', ''),
+                    job_type=data.get('job_type', 'Full-time'),
+                    description_summary=data['description'][:200] + '...' if len(data['description']) > 200 else data['description']
+                )
+                print(f"📧 Job posting confirmation email: {'sent' if email_sent else 'failed'}")
+        except Exception as email_error:
+            print(f"⚠️ Job posting email failed: {email_error}")
+        
         return jsonify({
             'message': 'Job created successfully',
-            'job_id': str(result.inserted_id),
-            'required_skills': job_skills
+            'job_id': job_id,
+            'required_skills': job_skills,
+            'email_sent': email_sent
         }), 201
         
     except Exception as e:

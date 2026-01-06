@@ -124,17 +124,23 @@ def register():
         # Generate JWT token
         access_token = create_access_token(identity={'user_id': user_id, 'role': role})
         
-        # Send welcome email (non-blocking)
+        # Send welcome email - log result explicitly
+        email_sent = False
         try:
-            email_service.send_welcome_email(email, full_name, role)
+            email_sent = email_service.send_welcome_email(email, full_name, role)
+            if email_sent:
+                logger.info(f"✅ Welcome email sent to {email}")
+            else:
+                logger.warning(f"⚠️ Welcome email NOT sent to {email} - check email config")
         except Exception as email_error:
-            print(f"⚠️ Welcome email failed: {email_error}")
+            logger.error(f"❌ Welcome email exception for {email}: {email_error}")
         
         print(f"🎉 Registration successful for {email}")
         return jsonify({
             'message': 'User registered successfully',
             'user_id': user_id,
             'access_token': access_token,
+            'email_sent': email_sent,  # FIX: Be honest about email status
             'user': {
                 'email': email,
                 'full_name': full_name,
@@ -209,10 +215,33 @@ def login():
             additional_claims={'role': user['role']}
         )
         
+        # Send login confirmation email (security alert)
+        login_email_sent = False
+        try:
+            from datetime import datetime
+            login_time = datetime.now().strftime('%B %d, %Y at %I:%M %p UTC')
+            ip_address = request.headers.get('X-Forwarded-For', request.remote_addr)
+            device_info = request.headers.get('User-Agent', 'Unknown device')[:100]
+            
+            login_email_sent = email_service.send_login_confirmation(
+                to_email=user['email'],
+                user_name=user['full_name'],
+                login_time=login_time,
+                ip_address=ip_address,
+                device_info=device_info
+            )
+            if login_email_sent:
+                logger.info(f"✅ Login confirmation email sent to {user['email']}")
+            else:
+                logger.warning(f"⚠️ Login confirmation email NOT sent to {user['email']}")
+        except Exception as email_error:
+            logger.error(f"❌ Login email exception: {email_error}")
+        
         print("✅ Login successful!")
         return jsonify({
             'message': 'Login successful',
             'access_token': access_token,
+            'login_email_sent': login_email_sent,
             'user': {
                 'user_id': str(user['_id']),
                 'email': user['email'],
@@ -320,19 +349,22 @@ def forgot_password():
         
         # Build response with development info if emails are disabled
         response_data = {
-            'message': 'If an account exists with this email, password reset instructions have been sent'
+            'message': 'If an account exists with this email, password reset instructions have been sent',
+            'email_sent': email_sent  # FIX: Always report email status honestly
         }
         
-        # In development mode or when emails are disabled, include the reset token for testing
-        email_enabled = os.getenv('EMAIL_ENABLED', 'false').lower() == 'true'
-        if not email_enabled or current_app.config.get('DEBUG', False):
-            print(f"[DEV MODE] Password reset token for {email}: {reset_token}")
-            print(f"[DEV MODE] Reset link: {reset_link}")
+        # FIX: Only expose tokens in DEVELOPMENT environment, NEVER based on DEBUG flag alone
+        flask_env = os.getenv('FLASK_ENV', 'production')
+        if flask_env == 'development' and not email_sent:
+            # Only expose if in dev mode AND email failed
+            logger.warning(f"[DEV MODE] Password reset token exposed for {email}")
             response_data['dev_mode'] = True
             response_data['reset_token'] = reset_token
             response_data['reset_link'] = reset_link
-            response_data['email_sent'] = email_sent
-            response_data['note'] = 'Email notifications are currently disabled. Use the reset token and link below for testing.'
+            response_data['note'] = 'DEV MODE: Token exposed because email failed. NEVER enable in production.'
+        elif not email_sent:
+            # Production mode - just warn that email failed
+            response_data['warning'] = 'Email delivery may have failed. Contact support if you do not receive the email.'
         
         return jsonify(response_data), 200
         
