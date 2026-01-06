@@ -94,6 +94,53 @@ body {
     transform: translateY(-2px);
     box-shadow: 0 4px 12px rgba(0,0,0,0.1);
 }
+
+/* Google Sign-In Button */
+.btn-google {
+    background: white;
+    color: #757575;
+    border: 2px solid #e2e8f0;
+    width: 100%;
+    padding: 12px 24px;
+    font-size: 16px;
+    font-weight: 500;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    border-radius: 12px;
+    cursor: pointer;
+    transition: all 0.3s;
+}
+.btn-google:hover {
+    background: #f7fafc;
+    border-color: #cbd5e0;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+}
+
+.social-login-section {
+    margin-top: 24px;
+}
+
+.divider {
+    display: flex;
+    align-items: center;
+    text-align: center;
+    margin: 20px 0;
+    color: #a0aec0;
+    font-size: 14px;
+}
+.divider::before,
+.divider::after {
+    content: '';
+    flex: 1;
+    border-bottom: 1px solid #e2e8f0;
+}
+.divider span {
+    padding: 0 16px;
+}
+
 .btn-success { 
     background: linear-gradient(135deg, #10b981 0%, #059669 100%); 
     color: white; 
