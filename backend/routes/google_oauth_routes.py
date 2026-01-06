@@ -19,23 +19,39 @@ from backend.utils.email_service import email_service
 logger = logging.getLogger(__name__)
 bp = Blueprint('google_oauth', __name__)
 
-# Google OAuth 2.0 Configuration
-GOOGLE_CLIENT_ID = os.getenv('GOOGLE_CLIENT_ID', '')
-GOOGLE_CLIENT_SECRET = os.getenv('GOOGLE_CLIENT_SECRET', '')
-GOOGLE_REDIRECT_URI = os.getenv('GOOGLE_REDIRECT_URI', 'http://localhost:5000/api/auth/google/callback')
-FRONTEND_URL = os.getenv('FRONTEND_URL', 'http://localhost:3000')
-
-# Google OAuth endpoints
+# Google OAuth endpoints (these are constant)
 GOOGLE_AUTH_URL = 'https://accounts.google.com/o/oauth2/v2/auth'
 GOOGLE_TOKEN_URL = 'https://oauth2.googleapis.com/token'
 GOOGLE_USERINFO_URL = 'https://www.googleapis.com/oauth2/v3/userinfo'
 
 
+def get_google_client_id():
+    """Get Google Client ID at runtime"""
+    return os.getenv('GOOGLE_CLIENT_ID', '')
+
+
+def get_google_client_secret():
+    """Get Google Client Secret at runtime"""
+    return os.getenv('GOOGLE_CLIENT_SECRET', '')
+
+
+def get_google_redirect_uri():
+    """Get Google Redirect URI at runtime"""
+    return os.getenv('GOOGLE_REDIRECT_URI', 'http://localhost:5000/api/auth/google/callback')
+
+
+def get_frontend_url():
+    """Get Frontend URL at runtime"""
+    return os.getenv('FRONTEND_URL', 'http://localhost:3000')
+
+
 def is_google_oauth_configured():
     """Check if Google OAuth is properly configured"""
-    return bool(GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET and 
-                'your-' not in GOOGLE_CLIENT_ID and 
-                'your-' not in GOOGLE_CLIENT_SECRET)
+    client_id = get_google_client_id()
+    client_secret = get_google_client_secret()
+    return bool(client_id and client_secret and 
+                'your-' not in client_id and 
+                'your-' not in client_secret)
 
 
 @bp.route('/google/status', methods=['GET'])
@@ -68,8 +84,8 @@ def google_login():
     
     # Build authorization URL
     params = {
-        'client_id': GOOGLE_CLIENT_ID,
-        'redirect_uri': GOOGLE_REDIRECT_URI,
+        'client_id': get_google_client_id(),
+        'redirect_uri': get_google_redirect_uri(),
         'response_type': 'code',
         'scope': 'openid email profile',
         'access_type': 'offline',
@@ -111,7 +127,7 @@ def google_callback():
     if error:
         logger.error(f"❌ Google OAuth error: {error}")
         # Redirect to frontend with error
-        return redirect(f"{FRONTEND_URL}/login?error=google_auth_failed&message={error}")
+        return redirect(f"{get_frontend_url()}/login?error=google_auth_failed&message={error}")
     
     if not code:
         return jsonify({'error': 'Authorization code not provided'}), 400
@@ -119,11 +135,11 @@ def google_callback():
     try:
         # Exchange code for tokens
         token_data = {
-            'client_id': GOOGLE_CLIENT_ID,
-            'client_secret': GOOGLE_CLIENT_SECRET,
+            'client_id': get_google_client_id(),
+            'client_secret': get_google_client_secret(),
             'code': code,
             'grant_type': 'authorization_code',
-            'redirect_uri': GOOGLE_REDIRECT_URI
+            'redirect_uri': get_google_redirect_uri()
         }
         
         logger.info("🔄 Exchanging authorization code for tokens...")
@@ -131,13 +147,13 @@ def google_callback():
         
         if token_response.status_code != 200:
             logger.error(f"❌ Token exchange failed: {token_response.text}")
-            return redirect(f"{FRONTEND_URL}/login?error=token_exchange_failed")
+            return redirect(f"{get_frontend_url()}/login?error=token_exchange_failed")
         
         tokens = token_response.json()
         access_token = tokens.get('access_token')
         
         if not access_token:
-            return redirect(f"{FRONTEND_URL}/login?error=no_access_token")
+            return redirect(f"{get_frontend_url()}/login?error=no_access_token")
         
         # Get user info from Google
         logger.info("👤 Fetching user info from Google...")
@@ -146,7 +162,7 @@ def google_callback():
         
         if userinfo_response.status_code != 200:
             logger.error(f"❌ Failed to get user info: {userinfo_response.text}")
-            return redirect(f"{FRONTEND_URL}/login?error=userinfo_failed")
+            return redirect(f"{get_frontend_url()}/login?error=userinfo_failed")
         
         google_user = userinfo_response.json()
         
@@ -157,7 +173,7 @@ def google_callback():
         email_verified = google_user.get('email_verified', False)
         
         if not email:
-            return redirect(f"{FRONTEND_URL}/login?error=no_email")
+            return redirect(f"{get_frontend_url()}/login?error=no_email")
         
         logger.info(f"✅ Google user info: {email}, verified: {email_verified}")
         
@@ -241,19 +257,19 @@ def google_callback():
         
         # Redirect to frontend with token
         # In production, you might want to use a more secure method (e.g., setting HttpOnly cookie)
-        redirect_url = f"{FRONTEND_URL}/oauth/callback?token={jwt_token}&user_id={user_id}&role={role}&is_new={is_new_user}"
+        redirect_url = f"{get_frontend_url()}/oauth/callback?token={jwt_token}&user_id={user_id}&role={role}&is_new={is_new_user}"
         
         logger.info(f"🎉 Google OAuth successful for {email}, redirecting to frontend")
         return redirect(redirect_url)
         
     except requests.RequestException as e:
         logger.error(f"❌ Network error during Google OAuth: {e}")
-        return redirect(f"{FRONTEND_URL}/login?error=network_error")
+        return redirect(f"{get_frontend_url()}/login?error=network_error")
     except Exception as e:
         logger.error(f"❌ Google OAuth error: {e}")
         import traceback
         traceback.print_exc()
-        return redirect(f"{FRONTEND_URL}/login?error=server_error")
+        return redirect(f"{get_frontend_url()}/login?error=server_error")
 
 
 @bp.route('/google/token', methods=['POST'])
@@ -282,7 +298,7 @@ def google_token_auth():
         token_info = response.json()
         
         # Verify the token is for our app
-        if token_info.get('aud') != GOOGLE_CLIENT_ID:
+        if token_info.get('aud') != get_google_client_id():
             return jsonify({'error': 'Token not intended for this application'}), 401
         
         email = token_info.get('email')
