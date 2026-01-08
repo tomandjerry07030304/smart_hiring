@@ -12,6 +12,9 @@ __pycache__/
 *.egg-info/
 dist/
 build/
+backend/build/
+backend/dist/
+backend/.venv/
 
 # Tests (not needed in production)
 tests/
@@ -85,3 +88,22 @@ build_scripts/
 *.orig
 !Dockerfile.aif360
 !railway.aif360.json
+
+# CRITICAL: Archive folder (1.6GB)
+_ARCHIVE_BEFORE_CLEANUP/
+
+# Smart hiring resumes (user uploads)
+smart_hiring_resumes/
+
+# Node modules
+node_modules/
+frontend/node_modules/
+
+# Netlify folder
+netlify/
+
+# Large ML model files
+*.pkl
+*.joblib
+*.h5
+*.model
