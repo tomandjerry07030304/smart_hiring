@@ -95,8 +95,13 @@ def register():
         # Hash password
         password_hash = bcrypt.generate_password_hash(password).decode('utf-8')
         
+        # P0 FIX: Generate email verification token
+        verification_token = secrets.token_urlsafe(32)
+        verification_token_hash = hashlib.sha256(verification_token.encode()).hexdigest()
+        verification_expires = datetime.utcnow() + timedelta(hours=24)
+        
         print("👤 Creating user object...")
-        # Create user
+        # Create user with email_verified = False
         user = User(
             email=email,
             password_hash=password_hash,
@@ -107,8 +112,14 @@ def register():
             github_url=data.get('github_url', '')
         )
         
+        # P0 FIX: Add verification fields to user document
+        user_dict = user.to_dict()
+        user_dict['email_verified'] = False
+        user_dict['verification_token'] = verification_token_hash
+        user_dict['verification_expires'] = verification_expires
+        
         print("💾 Inserting user into database...")
-        result = users_collection.insert_one(user.to_dict())
+        result = users_collection.insert_one(user_dict)
         user_id = str(result.inserted_id)
         print(f"✅ User created with ID: {user_id}")
         
@@ -124,27 +135,37 @@ def register():
         # Generate JWT token
         access_token = create_access_token(identity={'user_id': user_id, 'role': role})
         
-        # Send welcome email - log result explicitly
-        email_sent = False
+        # P0 FIX: Send verification email instead of just welcome email
+        verification_email_sent = False
+        welcome_email_sent = False
         try:
-            email_sent = email_service.send_welcome_email(email, full_name, role)
-            if email_sent:
-                logger.info(f"✅ Welcome email sent to {email}")
+            # Send verification email first
+            verification_email_sent = email_service.send_email_verification(email, full_name, verification_token)
+            if verification_email_sent:
+                logger.info(f"✅ Verification email sent to {email}")
             else:
-                logger.warning(f"⚠️ Welcome email NOT sent to {email} - check email config")
+                logger.warning(f"⚠️ Verification email NOT sent to {email} - check email config")
+            
+            # Also send welcome email
+            welcome_email_sent = email_service.send_welcome_email(email, full_name, role)
+            if welcome_email_sent:
+                logger.info(f"✅ Welcome email sent to {email}")
         except Exception as email_error:
-            logger.error(f"❌ Welcome email exception for {email}: {email_error}")
+            logger.error(f"❌ Email exception for {email}: {email_error}")
         
         print(f"🎉 Registration successful for {email}")
         return jsonify({
-            'message': 'User registered successfully',
+            'message': 'User registered successfully. Please check your email to verify your account.',
             'user_id': user_id,
             'access_token': access_token,
-            'email_sent': email_sent,  # FIX: Be honest about email status
+            'email_sent': verification_email_sent or welcome_email_sent,
+            'verification_email_sent': verification_email_sent,  # P0 FIX: Report verification status
+            'email_verified': False,  # P0 FIX: Explicit verification status
             'user': {
                 'email': email,
                 'full_name': full_name,
-                'role': role
+                'role': role,
+                'email_verified': False
             }
         }), 201
         
@@ -277,9 +298,22 @@ def get_profile():
         if not user:
             return jsonify({'error': 'User not found'}), 404
         
-        # Remove sensitive data
+        # P0 FIX: Remove ALL sensitive data before returning
         user['_id'] = str(user['_id'])
-        del user['password_hash']
+        
+        # List of sensitive fields that should NEVER be returned
+        sensitive_fields = [
+            'password_hash',
+            'reset_token',
+            'reset_token_expires',
+            'verification_token',
+            'verification_expires',
+            'otp_secret',
+            'two_factor_secret'
+        ]
+        for field in sensitive_fields:
+            if field in user:
+                del user[field]
         
         return jsonify(user), 200
         
@@ -540,5 +574,181 @@ def update_profile():
         else:
             return jsonify({'message': 'No changes made'}), 200
             
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+# =============================================================================
+# P0 FIX: EMAIL VERIFICATION ENDPOINTS
+# =============================================================================
+
+@bp.route('/verify-email', methods=['GET'])
+def verify_email():
+    """
+    P0 FIX: Verify user's email address using token
+    
+    Query params:
+        token: Verification token from email
+        email: User's email address
+    """
+    try:
+        token = request.args.get('token')
+        email = request.args.get('email', '').lower().strip()
+        
+        if not token or not email:
+            return jsonify({'error': 'Token and email are required'}), 400
+        
+        if not validate_email(email):
+            return jsonify({'error': 'Invalid email format'}), 400
+        
+        db = get_db()
+        users_collection = db['users']
+        
+        # Hash the provided token
+        token_hash = hashlib.sha256(token.encode()).hexdigest()
+        
+        # Find user with matching email and valid verification token
+        user = users_collection.find_one({
+            'email': email,
+            'verification_token': token_hash,
+            'verification_expires': {'$gt': datetime.utcnow()}
+        })
+        
+        if not user:
+            # Check if email is already verified
+            existing_user = users_collection.find_one({'email': email})
+            if existing_user and existing_user.get('email_verified'):
+                return jsonify({
+                    'message': 'Email already verified',
+                    'email_verified': True
+                }), 200
+            return jsonify({'error': 'Invalid or expired verification token'}), 400
+        
+        # Mark email as verified and remove verification token
+        users_collection.update_one(
+            {'_id': user['_id']},
+            {
+                '$set': {
+                    'email_verified': True,
+                    'email_verified_at': datetime.utcnow(),
+                    'updated_at': datetime.utcnow()
+                },
+                '$unset': {
+                    'verification_token': '',
+                    'verification_expires': ''
+                }
+            }
+        )
+        
+        logger.info(f"✅ Email verified for user: {email}")
+        
+        return jsonify({
+            'message': 'Email verified successfully! You can now access all features.',
+            'email_verified': True,
+            'success': True
+        }), 200
+        
+    except Exception as e:
+        logger.error(f"❌ Email verification error: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@bp.route('/resend-verification', methods=['POST'])
+@rate_limit(max_requests=3, window_seconds=3600)  # 3 requests per hour
+def resend_verification():
+    """
+    P0 FIX: Resend email verification link
+    """
+    try:
+        data = request.get_json()
+        
+        if 'email' not in data:
+            return jsonify({'error': 'Email is required'}), 400
+        
+        email = data['email'].lower().strip()
+        
+        if not validate_email(email):
+            return jsonify({'error': 'Invalid email format'}), 400
+        
+        db = get_db()
+        users_collection = db['users']
+        
+        # Find user
+        user = users_collection.find_one({'email': email})
+        
+        if not user:
+            # Security: Don't reveal if email exists
+            return jsonify({
+                'message': 'If an account exists with this email, a verification link has been sent'
+            }), 200
+        
+        # Check if already verified
+        if user.get('email_verified'):
+            return jsonify({
+                'message': 'Email is already verified',
+                'email_verified': True
+            }), 200
+        
+        # Generate new verification token
+        verification_token = secrets.token_urlsafe(32)
+        verification_token_hash = hashlib.sha256(verification_token.encode()).hexdigest()
+        verification_expires = datetime.utcnow() + timedelta(hours=24)
+        
+        # Update user with new token
+        users_collection.update_one(
+            {'_id': user['_id']},
+            {
+                '$set': {
+                    'verification_token': verification_token_hash,
+                    'verification_expires': verification_expires,
+                    'updated_at': datetime.utcnow()
+                }
+            }
+        )
+        
+        # Send verification email
+        email_sent = email_service.send_email_verification(
+            email, 
+            user.get('full_name', 'User'), 
+            verification_token
+        )
+        
+        return jsonify({
+            'message': 'If an account exists with this email, a verification link has been sent',
+            'email_sent': email_sent
+        }), 200
+        
+    except Exception as e:
+        logger.error(f"❌ Resend verification error: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@bp.route('/email-metrics', methods=['GET'])
+@jwt_required()
+def get_email_metrics():
+    """
+    P0 FIX: Get email sending metrics (admin only)
+    """
+    try:
+        current_user = get_jwt_identity()
+        
+        # Check if admin
+        if isinstance(current_user, dict):
+            role = current_user.get('role')
+        else:
+            db = get_db()
+            user = db['users'].find_one({'_id': ObjectId(current_user)})
+            role = user.get('role') if user else None
+        
+        if role != 'admin':
+            return jsonify({'error': 'Admin access required'}), 403
+        
+        metrics = email_service.get_metrics()
+        
+        return jsonify({
+            'email_metrics': metrics,
+            'timestamp': datetime.utcnow().isoformat()
+        }), 200
+        
     except Exception as e:
         return jsonify({'error': str(e)}), 500

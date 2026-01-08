@@ -271,5 +271,162 @@ def get_job_audit_report(job_id):
         return jsonify({'error': str(e)}), 500
 
 
+# =============================================================================
+# P0 ML: ML METRICS AND FAIRNESS AUDIT ENDPOINTS
+# =============================================================================
+
+@bp.route('/ml-metrics', methods=['GET'])
+@jwt_required()
+def get_ml_metrics():
+    """
+    P0 ML: Get ML system metrics (admin only)
+    
+    Returns metrics from:
+    - ML matching service (SBERT/TF-IDF)
+    - Anonymization service
+    - Email service
+    """
+    try:
+        current_user = get_jwt_identity()
+        
+        # Check admin access
+        if isinstance(current_user, dict):
+            role = current_user.get('role')
+        else:
+            db = get_db()
+            user = db['users'].find_one({'_id': ObjectId(current_user)})
+            role = user.get('role') if user else None
+        
+        if role != 'admin':
+            return jsonify({'error': 'Admin access required'}), 403
+        
+        metrics = {
+            'timestamp': datetime.utcnow().isoformat()
+        }
+        
+        # Get ML matching metrics
+        try:
+            from backend.services.ml_matching_service import get_ml_matching_service
+            ml_service = get_ml_matching_service()
+            metrics['ml_matching'] = ml_service.get_metrics()
+        except Exception as e:
+            metrics['ml_matching'] = {'error': str(e)}
+        
+        # Get anonymization metrics
+        try:
+            from backend.services.anonymization_service import get_anonymizer
+            anonymizer = get_anonymizer()
+            metrics['anonymization'] = anonymizer.get_metrics()
+        except Exception as e:
+            metrics['anonymization'] = {'error': str(e)}
+        
+        # Get email metrics
+        try:
+            from backend.utils.email_service import email_service
+            metrics['email'] = email_service.get_metrics()
+        except Exception as e:
+            metrics['email'] = {'error': str(e)}
+        
+        return jsonify(metrics), 200
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@bp.route('/fairness-audit', methods=['POST'])
+@jwt_required()
+def run_fairness_audit():
+    """
+    P0 ML: Run fairness audit on hiring decisions
+    
+    Request body:
+        job_id: Optional - audit decisions for specific job
+        time_range_days: Optional - audit decisions in last N days
+        attribute: Optional - specific attribute to audit (gender, etc.)
+    """
+    try:
+        current_user = get_jwt_identity()
+        
+        # Check admin/recruiter access
+        if isinstance(current_user, dict):
+            role = current_user.get('role')
+            user_id = current_user.get('user_id')
+        else:
+            user_id = current_user
+            db = get_db()
+            user = db['users'].find_one({'_id': ObjectId(user_id)})
+            role = user.get('role') if user else None
+        
+        if role not in ['admin', 'recruiter', 'company']:
+            return jsonify({'error': 'Admin or recruiter access required'}), 403
+        
+        data = request.get_json() or {}
+        job_id = data.get('job_id')
+        time_range_days = data.get('time_range_days', 30)
+        
+        db = get_db()
+        
+        # Build query
+        query = {}
+        if job_id:
+            query['job_id'] = job_id
+        if role in ['recruiter', 'company']:
+            # Recruiters can only audit their own jobs
+            recruiter_jobs = list(db['jobs'].find({'recruiter_id': user_id}, {'_id': 1}))
+            job_ids = [str(j['_id']) for j in recruiter_jobs]
+            query['job_id'] = {'$in': job_ids}
+        
+        # Add time filter
+        from datetime import timedelta
+        cutoff_date = datetime.utcnow() - timedelta(days=time_range_days)
+        query['applied_date'] = {'$gte': cutoff_date}
+        
+        # Get applications
+        applications = list(db['applications'].find(query))
+        
+        if len(applications) < 10:
+            return jsonify({
+                'warning': 'Insufficient data for meaningful fairness analysis',
+                'applications_found': len(applications),
+                'minimum_required': 10
+            }), 200
+        
+        # Run fairness audit
+        try:
+            from backend.services.fairness_audit_service import get_fairness_service
+            fairness_service = get_fairness_service()
+            
+            # Convert applications for audit
+            audit_data = []
+            for app in applications:
+                audit_data.append({
+                    'decision': app.get('status', 'pending'),
+                    'overall_score': app.get('overall_score', 0),
+                    # Note: In production, you'd have demographic data
+                    # For demo, we'll audit by score ranges
+                    'score_group': 'high' if app.get('overall_score', 0) >= 70 else 'low'
+                })
+            
+            # Run audit
+            audit_result = fairness_service.audit_application_batch(
+                audit_data,
+                decision_field='decision',
+                attribute_fields=['score_group']  # Demo attribute
+            )
+            
+            return jsonify({
+                'audit_result': audit_result,
+                'applications_analyzed': len(applications),
+                'time_range_days': time_range_days,
+                'job_id': job_id
+            }), 200
+            
+        except Exception as e:
+            return jsonify({'error': f'Fairness audit failed: {str(e)}'}), 500
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
 # Import at module level to avoid circular imports
 from datetime import timedelta

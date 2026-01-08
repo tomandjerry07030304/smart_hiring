@@ -1,31 +1,46 @@
 """
 Celery configuration for background task processing
 
-IMPORTANT STATUS (Updated 2026-01-06):
-======================================
-This async infrastructure EXISTS but is NOT CURRENTLY USED in production.
-Email sending is currently SYNCHRONOUS via email_service.py.
+P0 FIX STATUS (Updated 2026-01-08):
+===================================
+DECISION: HONEST SYNCHRONOUS MODE (OPTION B)
 
-To enable async email processing:
+Email sending is currently SYNCHRONOUS via email_service.py.
+This is the production-ready configuration for the MVP.
+
+Async infrastructure EXISTS but is marked as FUTURE capability.
+To enable async email processing in the future:
 1. Ensure Redis is running and accessible
 2. Start Celery workers: celery -A backend.celery_config worker --loglevel=info
 3. Update routes to use email_tasks.send_email_task.delay() instead of email_service.send_*()
 
-Current behavior: SYNCHRONOUS (honest about this)
+Current behavior: SYNCHRONOUS (production-ready)
 Future capability: ASYNCHRONOUS (when Redis + workers are configured)
 """
 
 from celery import Celery
 from datetime import timedelta
 import os
+import logging
+
+logger = logging.getLogger(__name__)
 
 # Redis connection
 REDIS_URL = os.getenv('REDIS_URL', 'redis://localhost:6379/0')
 
-# Check if async is actually enabled and Redis is configured
+# P0 FIX: Default to FALSE - async is NOT enabled by default
+# This ensures honest behavior - no silent failures
 ASYNC_ENABLED = os.getenv('ENABLE_BACKGROUND_WORKERS', 'false').lower() == 'true'
 
-# Initialize Celery
+# Log async status clearly at startup
+if ASYNC_ENABLED:
+    logger.info("🔄 ASYNC MODE ENABLED - Celery workers required")
+    print("🔄 ASYNC MODE ENABLED - Celery workers must be running")
+else:
+    logger.info("⚡ SYNC MODE - Emails sent synchronously (no Redis/Celery required)")
+    print("⚡ SYNC MODE - Emails sent synchronously (production-ready, no dependencies)")
+
+# Initialize Celery (only used if ASYNC_ENABLED)
 celery_app = Celery(
     'smart_hiring',
     broker=REDIS_URL,

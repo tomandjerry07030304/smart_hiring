@@ -3,15 +3,28 @@ from flask_jwt_extended import jwt_required, get_jwt_identity
 from datetime import datetime
 from bson import ObjectId
 import os
+import logging
 
 from backend.models.database import get_db
 from backend.models.job import Application
 from backend.models.user import Candidate
-from backend.utils.resume_parser import extract_text_from_file, anonymize_text
-from backend.utils.matching import extract_skills, analyze_candidate
+from backend.utils.resume_parser import extract_text_from_file
 from backend.utils.cci_calculator import calculate_career_consistency_index
 from backend.utils.email_service import email_service
 from backend.routes.audit_routes import log_audit_event
+
+# P0 ML: Import new ML services
+try:
+    from backend.services.ml_matching_service import get_ml_matching_service, analyze_candidate
+    from backend.services.anonymization_service import anonymize_text, get_anonymizer
+    ML_SERVICES_AVAILABLE = True
+except ImportError:
+    from backend.utils.matching import extract_skills, analyze_candidate
+    from backend.utils.resume_parser import anonymize_text
+    ML_SERVICES_AVAILABLE = False
+    logging.warning("⚠️ ML services not available - using basic matching")
+
+logger = logging.getLogger(__name__)
 
 bp = Blueprint('candidates', __name__)
 
@@ -53,23 +66,37 @@ def upload_resume():
         if not resume_text:
             return jsonify({'error': 'Could not extract text from resume'}), 400
         
-        print(f"\n{'='*60}")
-        print(f"📄 RESUME PROCESSING")
-        print(f"File: {file.filename}")
-        print(f"Size: {len(file_data)} bytes")
-        print(f"Text length: {len(resume_text)} characters")
-        print(f"Text preview: {resume_text[:200]}...")
-        print(f"{'='*60}\n")
+        logger.info(f"📄 RESUME PROCESSING: {file.filename} ({len(file_data)} bytes)")
         
-        # Anonymize resume
-        anonymized_text = anonymize_text(resume_text)
+        # P0 ML: Anonymize resume using enhanced service
+        anonymization_result = None
+        if ML_SERVICES_AVAILABLE:
+            try:
+                anonymizer = get_anonymizer()
+                anonymization_result = anonymizer.anonymize(resume_text)
+                anonymized_text = anonymization_result['anonymized_text']
+                logger.info(f"🔒 Anonymized: {anonymization_result['pii_count']} PII entities removed")
+            except Exception as e:
+                logger.warning(f"Enhanced anonymization failed: {e}")
+                anonymized_text = anonymize_text(resume_text)
+        else:
+            anonymized_text = anonymize_text(resume_text)
         
-        # Extract skills
-        print(f"🔍 Extracting skills from resume text...")
-        skills = extract_skills(resume_text)
-        print(f"✅ Skills extracted: {len(skills)} skills found")
-        print(f"📋 Skills list: {skills[:10]}..." if len(skills) > 10 else f"📋 Skills list: {skills}")
-        print(f"{'='*60}\n")
+        # P0 ML: Extract skills using enhanced ML service
+        if ML_SERVICES_AVAILABLE:
+            try:
+                ml_service = get_ml_matching_service()
+                skills = ml_service.extract_skills(resume_text)
+                logger.info(f"🧠 ML Skills extraction: {len(skills)} skills found")
+            except Exception as e:
+                logger.warning(f"ML skill extraction failed: {e}")
+                from backend.utils.matching import extract_skills
+                skills = extract_skills(resume_text)
+        else:
+            from backend.utils.matching import extract_skills
+            skills = extract_skills(resume_text)
+        
+        logger.info(f"✅ Skills extracted: {len(skills)} skills")
         
         # Get experience data from request (optional)
         experience_data = request.form.get('experience', '[]')
@@ -100,6 +127,10 @@ def upload_resume():
         if cci_result:
             update_data['cci_score'] = cci_result['cci_score']
         
+        # P0 ML: Store anonymization metadata
+        if anonymization_result:
+            update_data['pii_removed_count'] = anonymization_result['pii_count']
+        
         result = candidates_collection.update_one(
             {'user_id': user_id},
             {'$set': update_data},
@@ -113,13 +144,23 @@ def upload_resume():
             {'$set': {'profile_completed': True}}
         )
         
-        return jsonify({
+        response = {
             'message': 'Resume uploaded successfully',
             'skills_found': skills,
             'skills_count': len(skills),
             'cci': cci_result,
-            'resume_length': len(resume_text)
-        }), 200
+            'resume_length': len(resume_text),
+            'ml_services_used': ML_SERVICES_AVAILABLE
+        }
+        
+        # P0 ML: Include anonymization stats
+        if anonymization_result:
+            response['anonymization'] = {
+                'pii_removed': anonymization_result['pii_count'],
+                'breakdown': anonymization_result.get('pii_breakdown', {})
+            }
+        
+        return jsonify(response), 200
         
     except Exception as e:
         return jsonify({'error': str(e)}), 500

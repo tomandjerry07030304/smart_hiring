@@ -13,18 +13,65 @@ For ASYNCHRONOUS email sending:
 - Requires Redis running and ENABLE_BACKGROUND_WORKERS=true
 - Routes must call send_email_task.delay() instead of email_service methods
 
-Updated: 2026-01-06 - Made behavior explicit and honest
+Updated: 2026-01-08 - P0 FIX: Enhanced with metrics, verification emails, and honest reporting
+
+P0 STATUS: PRODUCTION-READY (Synchronous Mode)
+==============================================
+- EMAIL_ENABLED=true enforced
+- Real SMTP credentials required
+- All failures logged and reported honestly
+- Verification email support added
 """
 
 import os
 import smtplib
+import time
+import logging
+import secrets
+import hashlib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
-from datetime import datetime
-from typing import Optional, List
+from datetime import datetime, timedelta
+from typing import Optional, List, Dict, Tuple
+
+# Configure logging
+logger = logging.getLogger(__name__)
+
+# Email metrics tracking
+class EmailMetrics:
+    """Track email sending metrics for monitoring"""
+    def __init__(self):
+        self.total_sent = 0
+        self.total_failed = 0
+        self.total_latency_ms = 0
+        self.last_error = None
+        self.last_success_time = None
+        
+    def record_success(self, latency_ms: float):
+        self.total_sent += 1
+        self.total_latency_ms += latency_ms
+        self.last_success_time = datetime.utcnow()
+        
+    def record_failure(self, error: str):
+        self.total_failed += 1
+        self.last_error = error
+        
+    def get_stats(self) -> Dict:
+        avg_latency = self.total_latency_ms / self.total_sent if self.total_sent > 0 else 0
+        return {
+            'total_sent': self.total_sent,
+            'total_failed': self.total_failed,
+            'success_rate': self.total_sent / (self.total_sent + self.total_failed) if (self.total_sent + self.total_failed) > 0 else 0,
+            'avg_latency_ms': round(avg_latency, 2),
+            'last_success': self.last_success_time.isoformat() if self.last_success_time else None,
+            'last_error': self.last_error
+        }
+
+# Global metrics instance
+email_metrics = EmailMetrics()
 
 class EmailService:
-    """Professional email service with template support"""
+    """Professional email service with template support - P0 PRODUCTION READY"""
     
     def __init__(self):
         self.smtp_server = os.getenv('SMTP_SERVER', 'smtp.gmail.com')
@@ -33,9 +80,10 @@ class EmailService:
         self.smtp_password = os.getenv('SMTP_PASSWORD', '')
         self.from_email = os.getenv('FROM_EMAIL', 'noreply@smarthiring.com')
         self.from_name = os.getenv('FROM_NAME', 'Smart Hiring System')
-        # FIX: Default to TRUE - emails ENABLED by default in all non-test environments
+        # P0 FIX: Default to TRUE - emails ENABLED by default in all non-test environments
         env = os.getenv('FLASK_ENV', 'production')
         self.enabled = os.getenv('EMAIL_ENABLED', 'true').lower() == 'true' and env != 'testing'
+        self.metrics = email_metrics
         self._validate_configuration()
     
     def _validate_configuration(self):
@@ -76,20 +124,25 @@ class EmailService:
         if not self.enabled:
             logger.warning(f"📧 EMAIL DISABLED by configuration - email NOT sent to {to_email}")
             print(f"⚠️  EMAIL DISABLED - Set EMAIL_ENABLED=true in .env")
-            return False  # FIX: Return False - be honest about not sending
+            self.metrics.record_failure("EMAIL_DISABLED")
+            return False  # P0 FIX: Return False - be honest about not sending
             
-        # FIX: Validate credentials are real, not placeholders
+        # P0 FIX: Validate credentials are real, not placeholders
         if not self.config_valid:
             logger.error(f"❌ EMAIL CONFIG INVALID - Cannot send to {to_email}")
             print(f"❌ SMTP credentials not configured properly - email NOT sent")
-            return False  # FIX: Return False - be honest
-            
+            self.metrics.record_failure("CONFIG_INVALID")
+            return False  # P0 FIX: Return False - be honest
+        
+        start_time = time.time()
         try:
             # Create message
             msg = MIMEMultipart('alternative')
             msg['From'] = f"{self.from_name} <{self.from_email}>"
             msg['To'] = to_email
             msg['Subject'] = subject
+            msg['X-Mailer'] = 'Smart-Hiring-System/2.0'
+            msg['X-Priority'] = '3'  # Normal priority
             
             # Add plain text version
             if text_content:
@@ -100,25 +153,104 @@ class EmailService:
             part2 = MIMEText(html_content, 'html')
             msg.attach(part2)
             
-            # Send email
-            print(f"🚀 Attempting to send email via SMTP...")
-            with smtplib.SMTP(self.smtp_server, self.smtp_port) as server:
-                server.set_debuglevel(1)  # Enable SMTP debug output
+            # Send email with metrics
+            logger.info(f"🚀 Attempting to send email via SMTP to {to_email}...")
+            with smtplib.SMTP(self.smtp_server, self.smtp_port, timeout=30) as server:
                 server.starttls()
-                print(f"🔐 Logging in to SMTP server...")
+                logger.debug(f"🔐 Logging in to SMTP server...")
                 server.login(self.smtp_username, self.smtp_password)
-                print(f"📤 Sending message...")
+                logger.debug(f"📤 Sending message...")
                 server.send_message(msg)
-                
-            print(f"✅ EMAIL SENT SUCCESSFULLY to {to_email}")
+            
+            # Record success metrics
+            latency_ms = (time.time() - start_time) * 1000
+            self.metrics.record_success(latency_ms)
+            
+            logger.info(f"✅ EMAIL SENT SUCCESSFULLY to {to_email} (latency: {latency_ms:.0f}ms)")
             return True
             
-        except Exception as e:
-            print(f"❌ FAILED TO SEND EMAIL to {to_email}")
-            print(f"❌ Error: {str(e)}")
-            import traceback
-            traceback.print_exc()
+        except smtplib.SMTPAuthenticationError as e:
+            error_msg = f"SMTP Authentication failed: {str(e)}"
+            logger.error(f"❌ {error_msg}")
+            self.metrics.record_failure(error_msg)
             return False
+            
+        except smtplib.SMTPException as e:
+            error_msg = f"SMTP Error: {str(e)}"
+            logger.error(f"❌ {error_msg}")
+            self.metrics.record_failure(error_msg)
+            return False
+            
+        except Exception as e:
+            error_msg = f"Email send failed: {str(e)}"
+            logger.error(f"❌ FAILED TO SEND EMAIL to {to_email}: {error_msg}")
+            self.metrics.record_failure(error_msg)
+            return False
+    
+    def get_metrics(self) -> Dict:
+        """Get email sending metrics for monitoring"""
+        return self.metrics.get_stats()
+    
+    def send_email_verification(self, to_email: str, user_name: str, verification_token: str) -> bool:
+        """
+        P0 FIX: Send email verification link to new user
+        
+        Args:
+            to_email: User's email address
+            user_name: User's display name
+            verification_token: Secure verification token
+        
+        Returns:
+            bool: True if email sent successfully
+        """
+        base_url = os.getenv('FRONTEND_URL', 'http://localhost:5000')
+        verification_link = f"{base_url}/api/auth/verify-email?token={verification_token}&email={to_email}"
+        
+        subject = "🔐 Verify Your Email - Smart Hiring System"
+        
+        html_content = self._get_verification_template(user_name, verification_link)
+        text_content = f"""
+        Hi {user_name},
+        
+        Please verify your email address to complete your registration.
+        
+        Click the link below to verify:
+        {verification_link}
+        
+        This link will expire in 24 hours.
+        
+        If you didn't create an account, please ignore this email.
+        
+        Best regards,
+        Smart Hiring Team
+        """
+        
+        return self.send_email(to_email, subject, html_content, text_content)
+    
+    def _get_verification_template(self, user_name: str, verification_link: str) -> str:
+        """Email verification template"""
+        content = f"""
+            <h2>Verify Your Email Address 🔐</h2>
+            <p>Hi <strong>{user_name}</strong>,</p>
+            <p>Thank you for registering with Smart Hiring System!</p>
+            <p>Please click the button below to verify your email address:</p>
+            <p>
+                <a href="{verification_link}" class="button">
+                    Verify My Email →
+                </a>
+            </p>
+            <p><strong>Important:</strong></p>
+            <ul>
+                <li>This link will expire in <strong>24 hours</strong></li>
+                <li>If you didn't create this account, please ignore this email</li>
+            </ul>
+            <p style="font-size: 12px; color: #718096; margin-top: 24px;">
+                If the button doesn't work, copy and paste this link:<br>
+                <a href="{verification_link}" style="color: #4F46E5; word-break: break-all;">{verification_link}</a>
+            </p>
+            <p>Best regards,<br><strong>Smart Hiring Team</strong></p>
+        """
+        return self._get_base_template(content)
     
     def send_welcome_email(self, to_email: str, full_name: str, role: str) -> bool:
         """Send welcome email to new user"""
