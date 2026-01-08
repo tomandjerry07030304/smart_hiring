@@ -2,6 +2,7 @@
 # PRODUCTION DOCKERFILE FOR MAIN FLASK APP
 # For main Smart Hiring System deployment on Render
 # Uses LITE requirements for memory-constrained free tier
+# Version: 2.0 - Lightweight Edition (no PyTorch/Transformers)
 # ============================================================================
 
 # Multi-stage build for Smart Hiring System Backend
