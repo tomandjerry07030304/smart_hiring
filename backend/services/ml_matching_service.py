@@ -26,15 +26,21 @@ import numpy as np
 # Configure logging
 logger = logging.getLogger(__name__)
 
+# Check if ML models should be disabled (for memory-constrained environments like Render free tier)
+DISABLE_ML_MODELS = os.getenv('DISABLE_ML_MODELS', 'false').lower() == 'true'
+
 # Try to import sentence-transformers (P0 ML requirement)
 SBERT_AVAILABLE = False
 sbert_model = None
-try:
-    from sentence_transformers import SentenceTransformer
-    SBERT_AVAILABLE = True
-    logger.info("✅ Sentence-BERT available for semantic matching")
-except ImportError:
-    logger.warning("⚠️ sentence-transformers not installed - using TF-IDF fallback")
+if DISABLE_ML_MODELS:
+    logger.info("⚠️ ML models disabled via DISABLE_ML_MODELS env var - using TF-IDF only")
+else:
+    try:
+        from sentence_transformers import SentenceTransformer
+        SBERT_AVAILABLE = True
+        logger.info("✅ Sentence-BERT available for semantic matching")
+    except ImportError:
+        logger.warning("⚠️ sentence-transformers not installed - using TF-IDF fallback")
 
 # Try to import scikit-learn for TF-IDF
 SKLEARN_AVAILABLE = False

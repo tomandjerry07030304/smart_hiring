@@ -12,6 +12,7 @@ Date: December 2025
 License: MIT
 """
 
+import os
 import re
 import logging
 from typing import List, Dict, Set, Tuple, Optional, Any
@@ -19,6 +20,9 @@ from collections import defaultdict
 import numpy as np
 
 logger = logging.getLogger(__name__)
+
+# Check if ML models should be disabled (for memory-constrained environments)
+DISABLE_ML_MODELS = os.getenv('DISABLE_ML_MODELS', 'false').lower() == 'true'
 
 # ==================== ML MODEL IMPORTS ====================
 # Lazy loading for deployment flexibility
@@ -29,6 +33,9 @@ _sentence_transformer = None
 def get_spacy_model():
     """Lazy load spaCy model"""
     global _spacy_model
+    if DISABLE_ML_MODELS:
+        logger.info("⚠️ ML models disabled - spaCy skipped")
+        return None
     if _spacy_model is None:
         try:
             import spacy
@@ -53,6 +60,9 @@ def get_spacy_model():
 def get_sentence_transformer():
     """Lazy load Sentence Transformer for semantic similarity"""
     global _sentence_transformer
+    if DISABLE_ML_MODELS:
+        logger.info("⚠️ ML models disabled - Sentence Transformer skipped")
+        return None
     if _sentence_transformer is None:
         try:
             from sentence_transformers import SentenceTransformer
