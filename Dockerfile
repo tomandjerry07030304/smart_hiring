@@ -1,6 +1,7 @@
 # ============================================================================
 # PRODUCTION DOCKERFILE FOR MAIN FLASK APP
 # For main Smart Hiring System deployment on Render
+# Uses LITE requirements for memory-constrained free tier
 # ============================================================================
 
 # Multi-stage build for Smart Hiring System Backend
@@ -18,11 +19,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/* \
     && update-ca-certificates
 
-# Copy requirements
-COPY requirements.txt .
+# Copy requirements - use lite version for free tier deployment
+COPY requirements-lite.txt .
 
-# Install Python dependencies
-RUN pip install --no-cache-dir --user -r requirements.txt
+# Install Python dependencies (lightweight version)
+RUN pip install --no-cache-dir --user -r requirements-lite.txt
 
 # Final stage
 FROM python:3.10-slim

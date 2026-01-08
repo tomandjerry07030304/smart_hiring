@@ -1,0 +1,69 @@
+# Smart Hiring System - Lightweight Production Requirements
+# For memory-constrained environments (Render Free Tier, etc.)
+# Excludes heavy ML models (PyTorch, Transformers)
+
+# Backend Framework
+flask==3.0.0
+flask-cors==4.0.0
+flask-jwt-extended==4.6.0
+flask-bcrypt==1.0.1
+flask-socketio==5.3.5
+python-socketio==5.10.0
+gunicorn==21.2.0
+eventlet==0.33.3
+
+# Database
+pymongo==4.3.3
+
+# Redis for queuing and caching (optional - comment out if not using)
+redis==5.0.1
+# celery==5.3.4  # Disabled - requires Redis server
+# flower==2.0.1  # Disabled - Celery monitoring
+
+# Security
+cryptography==41.0.7
+pyotp==2.9.0
+qrcode[pil]==7.4.2
+
+# API & Web
+requests>=2.32.3
+python-dotenv==1.0.0
+
+# Email & Scheduling
+apscheduler==3.10.4
+
+# Utilities
+python-dateutil==2.8.2
+psutil==5.9.6
+
+# Resume Parsing
+PyPDF2==3.0.1
+python-docx==1.1.0
+# spacy==3.7.2  # Disabled - heavy, uses ~500MB
+
+# Monitoring & Observability
+sentry-sdk==1.39.2
+
+# Data analysis (used by dashboard routes)
+pandas==2.2.3
+
+# Machine Learning - LIGHTWEIGHT ONLY
+scikit-learn==1.5.2
+numpy==1.26.4
+
+# DISABLED for memory constraints:
+# sentence-transformers==2.2.2  # Requires PyTorch (~2GB)
+# torch>=2.0.0  # 2GB+ memory usage
+# fairlearn==0.9.0  # Optional
+
+# LinkedIn API Integration
+requests-oauthlib==1.3.1
+
+# Testing (optional in production)
+# pytest==7.4.3
+# pytest-flask==1.3.0
+
+# API Documentation
+apispec==6.3.1
+apispec-webframeworks==1.0.0
+marshmallow==3.20.1
