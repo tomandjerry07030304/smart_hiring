@@ -1,3 +1,4 @@
+
 """
 Smart Hiring System - Main Application Entry Point
 Version: 2.0.0 - Enterprise Edition with Security, Workers, GDPR Compliance

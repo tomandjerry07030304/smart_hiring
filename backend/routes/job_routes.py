@@ -57,7 +57,12 @@ def create_job():
             required_skills=job_skills,
             experience_required=data.get('experience_required', 0),
             salary_range=data.get('salary_range', {}),
-            deadline=data.get('deadline', None)
+            deadline=data.get('deadline', None),
+            # Adaptive Smart Hiring fields
+            job_level=data.get('job_level', 'ENTRY'),
+            experience_requirement_type=data.get('experience_requirement_type', 'BOTH_ALLOWED'),
+            min_experience_years=data.get('min_experience_years', 0),
+            max_experience_years=data.get('max_experience_years', 100)
         )
         
         print("💾 Inserting job into database...")

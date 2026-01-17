@@ -1,0 +1,81 @@
+VENKAT ANAND KUMAR
+Full Stack Developer | Software Engineer
+
+Contact: venkatanand@email.com | +91-9876543210 | Chennai, India
+LinkedIn: linkedin.com/in/venkatanand | GitHub: github.com/venkatanand
+
+================================================================================
+PROFESSIONAL SUMMARY
+================================================================================
+Highly motivated Full Stack Developer with 2+ years of experience in building 
+scalable web applications. Proficient in Python, JavaScript, React, Node.js, 
+and cloud technologies. Strong problem-solving skills with passion for creating 
+efficient, user-friendly solutions.
+
+================================================================================
+TECHNICAL SKILLS
+================================================================================
+Languages: Python, JavaScript, TypeScript, Java, C++, SQL
+Frontend: React.js, Next.js, Vue.js, HTML5, CSS3, Bootstrap, Tailwind CSS
+Backend: Node.js, Express.js, Flask, Django, FastAPI, REST APIs
+Databases: MongoDB, MySQL, PostgreSQL, Redis, Firebase
+Cloud/DevOps: AWS, Azure, Docker, Kubernetes, CI/CD, GitHub Actions
+Tools: Git, VS Code, Postman, Jira, Figma, Linux
+
+================================================================================
+WORK EXPERIENCE
+================================================================================
+SOFTWARE DEVELOPER INTERN
+Tech Solutions Pvt Ltd | Chennai | June 2025 - Present
+- Developed RESTful APIs using Python Flask and Node.js Express
+- Built responsive interfaces using React.js and Bootstrap
+- Implemented MongoDB schemas, optimized queries for 40% faster performance
+- Deployed applications on AWS EC2 with CI/CD pipelines
+- Achieved 85% code coverage with Jest and Pytest
+
+JUNIOR WEB DEVELOPER
+Digital Innovations | Remote | January 2025 - May 2025
+- Created dynamic web applications using JavaScript, HTML5, CSS3
+- Integrated payment gateways and social media authentication
+- Optimized performance achieving 95+ Google Lighthouse score
+
+================================================================================
+EDUCATION
+================================================================================
+B.Tech in Computer Science
+Anna University | Chennai | 2022 - 2026 (Expected)
+CGPA: 8.5/10
+
+Higher Secondary Education
+XYZ Senior Secondary School | Chennai | 2020 - 2022
+Percentage: 92% | Stream: Computer Science
+
+================================================================================
+PROJECTS
+================================================================================
+SMART HIRING SYSTEM
+- Full-stack recruitment platform with AI-powered candidate matching
+- Technologies: Flask, React, MongoDB, Python, JWT, 2FA
+- Deployed on Render with automated CI/CD
+
+E-COMMERCE PLATFORM
+- MERN Stack application with Stripe payments and OAuth
+- Features: Cart, wishlist, order tracking | 10,000+ monthly users
+
+TASK MANAGEMENT APP
+- Vue.js + Django collaborative tool with WebSockets
+- Features: Kanban boards, team collaboration, reminders
+
+================================================================================
+CERTIFICATIONS
+================================================================================
+- AWS Certified Cloud Practitioner (2025)
+- Meta Frontend Developer Certificate - Coursera (2024)
+- HackerRank Python Gold Badge (5-star)
+- LeetCode: 500+ problems, Rating 1800+
+- Winner - College Hackathon 2024
+
+================================================================================
+LANGUAGES
+================================================================================
+English (Professional) | Hindi (Native) | Tamil (Native)

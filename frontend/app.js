@@ -369,7 +369,44 @@ function showRegister() {
 }
 
 // Google Sign-In Handler
+// Google Sign-In Handler (FIXED)
 async function handleGoogleSignIn() {
+    try {
+        // Check if Google OAuth is configured
+        const statusResponse = await fetch(`${API_URL}/auth/google/status`);
+        const statusData = await statusResponse.json();
+
+        if (!statusData.google_oauth_available) {
+            showNotification(
+                'Google Sign-In is not configured yet. Please use email/password login.',
+                'warning'
+            );
+            return;
+        }
+
+        // Get Google Auth URL
+        const response = await fetch(`${API_URL}/auth/google/login`);
+        const data = await response.json();
+
+        if (data.auth_url) {
+            // Redirect to Google for authentication
+            window.location.href = data.auth_url;
+        } else {
+            showNotification(
+                'Failed to initialize Google Sign-In. Please try again.',
+                'error'
+            );
+        }
+    } catch (error) {
+        console.error('Google Sign-In error:', error);
+        showNotification(
+            'Google Sign-In is currently unavailable. Please use email/password login.',
+            'error'
+        );
+    }
+}
+
+/*async function handleGoogleSignIn() {
     try {
         // Check if Google OAuth is configured
         const statusResponse = await fetch(`${API_BASE}/api/auth/google/status`);
@@ -394,7 +431,7 @@ async function handleGoogleSignIn() {
         console.error('Google Sign-In error:', error);
         showNotification('Google Sign-In is currently unavailable. Please use email/password login.', 'error');
     }
-}
+}*/
 
 async function handleLogin(e) {
     e.preventDefault();

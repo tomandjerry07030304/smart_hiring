@@ -95,6 +95,150 @@ def send_welcome_email(user_email, user_name):
     return send_email_task.delay(user_email, subject, body, html_body)
 
 
+@celery_app.task(base=SafeTask, name='send_verification_email')
+def send_verification_email(user_email, user_name, verification_token):
+    """
+    Send email verification link to new user
+    Priority: Critical
+    """
+    base_url = os.getenv('FRONTEND_URL', 'http://localhost:5000')
+    verification_link = f"{base_url}/api/auth/verify-email?token={verification_token}&email={user_email}"
+    
+    subject = "🔐 Verify Your Email - Smart Hiring System"
+    
+    body = f"""
+    Hi {user_name},
+    
+    Please verify your email address to complete your registration.
+    
+    Click the link below to verify:
+    {verification_link}
+    
+    This link will expire in 24 hours.
+    
+    If you didn't create an account, please ignore this email.
+    
+    Best regards,
+    Smart Hiring Team
+    """
+    
+    html_body = f"""
+    <html>
+        <body style="font-family: Arial, sans-serif;">
+            <h2>Verify Your Email Address 🔐</h2>
+            <p>Hi <strong>{user_name}</strong>,</p>
+            <p>Thank you for registering with Smart Hiring System!</p>
+            <p>Please click the button below to verify your email address:</p>
+            <p>
+                <a href="{verification_link}" style="background-color: #4F46E5; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; font-weight: bold;">
+                    Verify My Email
+                </a>
+            </p>
+            <p><strong>Important:</strong></p>
+            <ul>
+                <li>This link will expire in <strong>24 hours</strong></li>
+                <li>If you didn't create this account, please ignore this email</li>
+            </ul>
+            <p style="font-size: 12px; color: #718096; margin-top: 24px;">
+                If the button doesn't work, copy and paste this link:<br>
+                <a href="{verification_link}">{verification_link}</a>
+            </p>
+            <p>Best regards,<br><strong>Smart Hiring Team</strong></p>
+        </body>
+    </html>
+    """
+    
+    return send_email_task.delay(user_email, subject, body, html_body)
+
+
+@celery_app.task(base=SafeTask, name='send_new_application_alert')
+def send_new_application_alert(recruiter_email, recruiter_name, candidate_name, job_title, match_score):
+    """
+    Send new application alert to recruiter
+    Priority: High
+    """
+    subject = f"New Application: {candidate_name} for {job_title}"
+    
+    # Determine score color
+    score_color = '#065f46' if match_score >= 80 else '#7c2d12' if match_score >= 60 else '#991b1b'
+    
+    body = f"""
+    Hi {recruiter_name},
+    
+    You have received a new application from {candidate_name} for {job_title}.
+    
+    Match Score: {int(match_score)}%
+    
+    Log in to review the application.
+    
+    Smart Hiring Team
+    """
+    
+    html_body = f"""
+    <html>
+        <body style="font-family: Arial, sans-serif;">
+            <h2>New Application Received! 📋</h2>
+            <p>Hi <strong>{recruiter_name}</strong>,</p>
+            <p>You have received a new application from <strong>{candidate_name}</strong> for the position:</p>
+            <h3 style="color: #4F46E5;">{job_title}</h3>
+            <div style="background: #f7fafc; padding: 20px; border-radius: 12px; margin: 24px 0;">
+                <p style="margin: 0; color: #718096;">Match Score</p>
+                <h2 style="margin: 8px 0; color: {score_color};">{int(match_score)}%</h2>
+            </div>
+            <p>
+                <a href="https://my-project-smart-hiring.onrender.com" style="background-color: #4F46E5; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">
+                    Review Application
+                </a>
+            </p>
+            <p>Best regards,<br><strong>Smart Hiring System</strong></p>
+        </body>
+    </html>
+    """
+    
+    return send_email_task.delay(recruiter_email, subject, body, html_body)
+
+
+@celery_app.task(base=SafeTask, name='send_application_confirmation')
+def send_application_confirmation(candidate_email, candidate_name, job_title, company_name):
+    """
+    Send application confirmation to candidate
+    Priority: Medium
+    """
+    subject = f"Application Received: {job_title}"
+    
+    body = f"""
+    Hi {candidate_name},
+    
+    Your application for {job_title} at {company_name} has been received.
+    
+    We will review your application and get back to you soon.
+    
+    Best of luck!
+    Smart Hiring Team
+    """
+    
+    html_body = f"""
+    <html>
+        <body style="font-family: Arial, sans-serif;">
+            <h2>Application Received! ✅</h2>
+            <p>Hi <strong>{candidate_name}</strong>,</p>
+            <p>Your application for <strong>{job_title}</strong> at <strong>{company_name}</strong> has been successfully submitted.</p>
+            <p><strong>What happens next?</strong></p>
+            <ol>
+                <li>Our team will review your application</li>
+                <li>We'll match your skills with job requirements</li>
+                <li>You'll be notified about any status updates</li>
+            </ol>
+            <p>You can track your application status anytime in your dashboard.</p>
+            <p>Good luck! 🍀</p>
+            <p>Best regards,<br><strong>Smart Hiring Team</strong></p>
+        </body>
+    </html>
+    """
+    
+    return send_email_task.delay(candidate_email, subject, body, html_body)
+
+
 @celery_app.task(base=SafeTask, name='send_application_status_email')
 def send_application_status_email(user_email, job_title, new_status):
     """Send email when application status changes"""

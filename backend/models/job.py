@@ -22,6 +22,11 @@ class Job:
         self.applications_count = kwargs.get('applications_count', 0)
         self.created_at = kwargs.get('created_at', datetime.utcnow())
         self.updated_at = kwargs.get('updated_at', datetime.utcnow())
+        # Adaptive Smart Hiring fields
+        self.job_level = kwargs.get('job_level', 'ENTRY')  # FRESHER, ENTRY, MID, SENIOR
+        self.experience_requirement_type = kwargs.get('experience_requirement_type', 'BOTH_ALLOWED')  # FRESHER_ONLY, EXPERIENCE_REQUIRED, BOTH_ALLOWED
+        self.min_experience_years = kwargs.get('min_experience_years', 0)
+        self.max_experience_years = kwargs.get('max_experience_years', 100)
         
     def to_dict(self):
         return {
@@ -39,7 +44,12 @@ class Job:
             'deadline': self.deadline,
             'applications_count': self.applications_count,
             'created_at': self.created_at,
-            'updated_at': self.updated_at
+            'updated_at': self.updated_at,
+            # Adaptive Smart Hiring fields
+            'job_level': self.job_level,
+            'experience_requirement_type': self.experience_requirement_type,
+            'min_experience_years': self.min_experience_years,
+            'max_experience_years': self.max_experience_years
         }
 
 class Application:

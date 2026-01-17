@@ -14,6 +14,7 @@ from backend.models.user import User, Candidate
 from backend.utils.sanitizer import sanitizer
 from backend.utils.rate_limiter import rate_limit
 from backend.utils.email_service import email_service
+from backend.tasks.email_tasks import send_verification_email
 
 logger = logging.getLogger(__name__)
 bp = Blueprint('auth', __name__)
@@ -109,7 +110,8 @@ def register():
             full_name=full_name,
             phone=data.get('phone', ''),
             linkedin_url=data.get('linkedin_url', ''),
-            github_url=data.get('github_url', '')
+            github_url=data.get('github_url', ''),
+            is_active=False  # Priority 1: User inactive by default until verified
         )
         
         # P0 FIX: Add verification fields to user document
@@ -140,16 +142,15 @@ def register():
         welcome_email_sent = False
         try:
             # Send verification email first
-            verification_email_sent = email_service.send_email_verification(email, full_name, verification_token)
-            if verification_email_sent:
-                logger.info(f"✅ Verification email sent to {email}")
-            else:
-                logger.warning(f"⚠️ Verification email NOT sent to {email} - check email config")
+            # Priority 1: Async Verification Email via Celery
+            task = send_verification_email.delay(email, full_name, verification_token)
+            verification_email_sent = True
+            logger.info(f"✅ Verification email task dispatched for {email} (Task ID: {task.id})")
             
-            # Also send welcome email
-            welcome_email_sent = email_service.send_welcome_email(email, full_name, role)
-            if welcome_email_sent:
-                logger.info(f"✅ Welcome email sent to {email}")
+            # Also send welcome email (Async)
+            # welcome_email_sent = email_service.send_welcome_email(email, full_name, role)
+            # if welcome_email_sent:
+            #    logger.info(f"✅ Welcome email sent to {email}")
         except Exception as email_error:
             logger.error(f"❌ Email exception for {email}: {email_error}")
         
@@ -630,6 +631,7 @@ def verify_email():
             {
                 '$set': {
                     'email_verified': True,
+                    'is_active': True,  # Priority 1: Activate user
                     'email_verified_at': datetime.utcnow(),
                     'updated_at': datetime.utcnow()
                 },
