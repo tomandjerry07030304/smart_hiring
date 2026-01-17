@@ -21,7 +21,19 @@ import logging
 from typing import Dict, List, Optional, Any
 from datetime import datetime, timedelta
 from collections import defaultdict, Counter
-import numpy as np
+
+# P0 FIX: Make numpy optional for Lite environments
+try:
+    import numpy as np
+    NUMPY_AVAILABLE = True
+except ImportError:
+    NUMPY_AVAILABLE = False
+    class MockNumpy:
+        @staticmethod
+        def mean(data):
+            if not data: return 0
+            return sum(data) / len(data)
+    np = MockNumpy()
 
 logger = logging.getLogger(__name__)
 

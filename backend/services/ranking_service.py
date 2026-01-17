@@ -3,20 +3,35 @@ ML-Powered Candidate Ranking Service
 Provides intelligent candidate scoring and ranking using machine learning
 """
 
-import numpy as np
 from typing import List, Dict, Optional, Tuple
 from datetime import datetime
 import re
+import logging
+
+logger = logging.getLogger(__name__)
+
+# P0 FIX: Make numpy optional for Lite environments
+try:
+    import numpy as np
+    NUMPY_AVAILABLE = True
+except ImportError:
+    NUMPY_AVAILABLE = False
+    logger.warning("⚠️ Numpy not found. ML ranking will be limited.")
+    # Mock numpy for basic type usage or fallback logic
+    np = None
 
 # Try to import ML libraries, fall back to basic scoring if not available
 try:
-    from sklearn.feature_extraction.text import TfidfVectorizer
-    from sklearn.metrics.pairwise import cosine_similarity
-    from sklearn.preprocessing import MinMaxScaler
-    ML_AVAILABLE = True
+    if NUMPY_AVAILABLE:
+        from sklearn.feature_extraction.text import TfidfVectorizer
+        from sklearn.metrics.pairwise import cosine_similarity
+        from sklearn.preprocessing import MinMaxScaler
+        ML_AVAILABLE = True
+    else:
+        raise ImportError("Numpy missing")
 except ImportError:
     ML_AVAILABLE = False
-    print("⚠️ scikit-learn not available. Using basic ranking. Install with: pip install scikit-learn")
+    # print("⚠️ scikit-learn not available. Using basic ranking. Install with: pip install scikit-learn")
 
 
 class MLCandidateRanker:

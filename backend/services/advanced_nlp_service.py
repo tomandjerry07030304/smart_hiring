@@ -17,12 +17,27 @@ import re
 import logging
 from typing import List, Dict, Set, Tuple, Optional, Any
 from collections import defaultdict
-import numpy as np
+
+# P0 FIX: Make numpy optional for Lite environments
+try:
+    import numpy as np
+    NUMPY_AVAILABLE = True
+except ImportError:
+    NUMPY_AVAILABLE = False
+    class MockNumpy:
+        @staticmethod
+        def mean(data):
+            if not data: return 0.0
+            return sum(data) / len(data)
+        @staticmethod
+        def array(data): return data
+    np = MockNumpy()
 
 logger = logging.getLogger(__name__)
 
 # Check if ML models should be disabled (for memory-constrained environments)
-DISABLE_ML_MODELS = os.getenv('DISABLE_ML_MODELS', 'false').lower() == 'true'
+# Also disable if numpy is missing
+DISABLE_ML_MODELS = os.getenv('DISABLE_ML_MODELS', 'false').lower() == 'true' or not NUMPY_AVAILABLE
 
 # ==================== ML MODEL IMPORTS ====================
 # Lazy loading for deployment flexibility

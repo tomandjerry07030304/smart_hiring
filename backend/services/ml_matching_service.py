@@ -21,19 +21,28 @@ import logging
 from typing import Dict, List, Optional, Tuple, Any
 from datetime import datetime
 
-import numpy as np
+# P0 FIX: Make numpy optional for Lite environments
+try:
+    import numpy as np
+    NUMPY_AVAILABLE = True
+except ImportError:
+    NUMPY_AVAILABLE = False
+    np = None
 
 # Configure logging
 logger = logging.getLogger(__name__)
 
 # Check if ML models should be disabled (for memory-constrained environments like Render free tier)
-DISABLE_ML_MODELS = os.getenv('DISABLE_ML_MODELS', 'false').lower() == 'true'
+DISABLE_ML_MODELS = os.getenv('DISABLE_ML_MODELS', 'false').lower() == 'true' or not NUMPY_AVAILABLE
 
 # Try to import sentence-transformers (P0 ML requirement)
 SBERT_AVAILABLE = False
 sbert_model = None
 if DISABLE_ML_MODELS:
-    logger.info("⚠️ ML models disabled via DISABLE_ML_MODELS env var - using TF-IDF only")
+    if not NUMPY_AVAILABLE:
+        logger.warning("⚠️ Numpy missing - ML models disabled")
+    else:
+        logger.info("⚠️ ML models disabled via DISABLE_ML_MODELS env var - using TF-IDF only")
 else:
     try:
         from sentence_transformers import SentenceTransformer
@@ -45,10 +54,13 @@ else:
 # Try to import scikit-learn for TF-IDF
 SKLEARN_AVAILABLE = False
 try:
-    from sklearn.feature_extraction.text import TfidfVectorizer
-    from sklearn.metrics.pairwise import cosine_similarity as sklearn_cosine
-    SKLEARN_AVAILABLE = True
-    logger.info("✅ scikit-learn available for TF-IDF matching")
+    if NUMPY_AVAILABLE:
+        from sklearn.feature_extraction.text import TfidfVectorizer
+        from sklearn.metrics.pairwise import cosine_similarity as sklearn_cosine
+        SKLEARN_AVAILABLE = True
+        logger.info("✅ scikit-learn available for TF-IDF matching")
+    else:
+        raise ImportError("Numpy missing")
 except ImportError:
     logger.warning("⚠️ scikit-learn not installed - limited matching capability")
 
