@@ -3,38 +3,49 @@ Fairness & Bias Prevention Service
 Enhanced with custom lightweight fairness engine for Render deployment compatibility
 """
 
-import pandas as pd
-import numpy as np
-from collections import defaultdict
 from typing import Dict, List, Optional
+from collections import defaultdict
+import logging
+
+logger = logging.getLogger(__name__)
+
+# P0 FIX: Make pandas optional for Lite environments (Render Free Tier)
+try:
+    import pandas as pd
+    import numpy as np
+    PANDAS_AVAILABLE = True
+except ImportError:
+    PANDAS_AVAILABLE = False
+    logger.warning("⚠️ Pandas/Numpy not found. Fairness analysis will be disabled.")
+    # Mock pandas for type hinting or basic usage if needed, or just handle in logic
+    pd = None
+    np = None
 
 # Import our custom lightweight fairness engine
-from backend.services.fairness_engine import (
-    analyze_hiring_fairness_comprehensive,
-    calculate_fairness_score,
-    get_fairness_badge as get_badge_info,
-    calculate_demographic_parity,
-    calculate_equal_opportunity,
-    calculate_disparate_impact,
-    FairnessMetrics,
-    BiasDetector
-)
+# Wrap in try-except because it likely depends on pandas too
+try:
+    from backend.services.fairness_engine import (
+        analyze_hiring_fairness_comprehensive,
+        calculate_fairness_score,
+        get_fairness_badge as get_badge_info,
+        calculate_demographic_parity,
+        calculate_equal_opportunity,
+        calculate_disparate_impact,
+        FairnessMetrics,
+        BiasDetector
+    )
+    ENGINE_AVAILABLE = True
+except ImportError:
+    ENGINE_AVAILABLE = False
+    logger.warning("⚠️ Fairness engine not available (missing dependencies).")
 
 # AIF360 is NOT used anymore - all fairness metrics calculated in-house
 AIF360_AVAILABLE = False
-print("✅ Using custom lightweight fairness engine (AIF360 not required)")
+# print("✅ Using custom lightweight fairness engine (AIF360 not required)")
 
 def calculate_demographic_parity(selection_rates):
     """
     Calculate demographic parity difference
-    
-    Demographic Parity: P(Ŷ=1|D=unprivileged) = P(Ŷ=1|D=privileged)
-    
-    Args:
-        selection_rates: dict with {group: selection_rate}
-    
-    Returns:
-        float: Parity difference (0 = perfect parity)
     """
     if not selection_rates or len(selection_rates) < 2:
         return 0.0
@@ -49,14 +60,6 @@ def calculate_demographic_parity(selection_rates):
 def calculate_equal_opportunity(true_positive_rates):
     """
     Calculate equal opportunity difference
-    
-    Equal Opportunity: P(Ŷ=1|Y=1,D=unprivileged) = P(Ŷ=1|Y=1,D=privileged)
-    
-    Args:
-        true_positive_rates: dict with {group: TPR}
-    
-    Returns:
-        float: Opportunity difference (0 = perfect equality)
     """
     if not true_positive_rates or len(true_positive_rates) < 2:
         return 0.0
@@ -71,16 +74,6 @@ def calculate_equal_opportunity(true_positive_rates):
 def calculate_disparate_impact(selection_rates):
     """
     Calculate disparate impact ratio
-    
-    Disparate Impact = P(Ŷ=1|D=unprivileged) / P(Ŷ=1|D=privileged)
-    
-    A value < 0.8 indicates potential discrimination (80% rule)
-    
-    Args:
-        selection_rates: dict with {group: selection_rate}
-    
-    Returns:
-        dict: Disparate impact ratios
     """
     if not selection_rates or len(selection_rates) < 2:
         return {}
@@ -102,17 +95,15 @@ def calculate_disparate_impact(selection_rates):
 def analyze_hiring_fairness(applications_df, protected_attribute='gender', favorable_label=1):
     """
     Comprehensive fairness analysis of hiring decisions
-    
-    Now uses custom lightweight fairness engine instead of AIF360
-    
-    Args:
-        applications_df: DataFrame with columns [protected_attribute, decision, ground_truth]
-        protected_attribute: Column name for protected attribute (e.g., 'gender', 'race')
-        favorable_label: Label for positive outcome (e.g., 1 for hired, 0 for rejected)
-    
-    Returns:
-        dict: Fairness metrics and recommendations
     """
+    if not PANDAS_AVAILABLE or not ENGINE_AVAILABLE:
+        return {
+            'error': 'Fairness analysis unavailable (missing pandas/numpy)',
+            'bias_detected': False,
+            'fairness_score': 0,
+            'recommendations': ['System is running in Lite mode. Install pandas for full analysis.']
+        }
+
     if applications_df.empty:
         return {
             'error': 'No data provided',
@@ -154,15 +145,16 @@ def analyze_hiring_fairness(applications_df, protected_attribute='gender', favor
 def generate_fairness_report(job_id, applications_data, protected_attributes=['gender', 'age_group', 'ethnicity']):
     """
     Generate comprehensive fairness audit report
-    
-    Args:
-        job_id: Job posting ID
-        applications_data: List of application dicts
-        protected_attributes: List of attributes to check for fairness
-    
-    Returns:
-        dict: Complete fairness audit report
     """
+    if not PANDAS_AVAILABLE:
+        return {
+            'job_id': job_id,
+            'error': 'Fairness report unavailable (missing pandas)',
+            'analyses': {},
+            'overall_bias_detected': False,
+            'summary_recommendations': ['Install pandas to enable fairness reports.']
+        }
+
     df = pd.DataFrame(applications_data)
     
     report = {
@@ -204,13 +196,13 @@ def generate_fairness_report(job_id, applications_data, protected_attributes=['g
 def get_fairness_badge(fairness_score):
     """
     Get fairness badge based on metrics
-    
-    Now uses custom fairness engine
-    
-    Args:
-        fairness_score: Score from 0-100 (100 = perfectly fair)
-    
-    Returns:
-        dict: Badge information
     """
+    if not ENGINE_AVAILABLE:
+        return {
+            'label': 'Lite Mode',
+            'color': 'gray',
+            'score': 0,
+            'description': 'Fairness engine unavailable'
+        }
+
     return get_badge_info(fairness_score)
