@@ -8,8 +8,15 @@ import logging
 from datetime import datetime
 from typing import Dict, Any, Optional
 from flask import jsonify, request
-import psutil
 import time
+
+# Optional psutil import for system monitoring
+try:
+    import psutil
+    PSUTIL_AVAILABLE = True
+except ImportError:
+    psutil = None
+    PSUTIL_AVAILABLE = False
 
 logger = logging.getLogger(__name__)
 
@@ -64,6 +71,11 @@ class HealthCheckService:
     
     def check_system_resources(self) -> Dict[str, Any]:
         """Check system resource usage"""
+        if not PSUTIL_AVAILABLE:
+            return {
+                'status': 'unavailable',
+                'message': 'psutil not installed - system monitoring disabled'
+            }
         try:
             cpu_percent = psutil.cpu_percent(interval=1)
             memory = psutil.virtual_memory()
