@@ -24,6 +24,13 @@ function togglePasswordVisibility(inputId, button) {
     }
 }
 
+// Escape HTML to prevent XSS
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
 // Modern Notification System
 function showNotification(message, type = 'info', duration = 5000) {
     const container = document.getElementById('notification-container');
@@ -37,10 +44,13 @@ function showNotification(message, type = 'info', duration = 5000) {
         warning: '⚠'
     };
     
+    // Sanitize message to prevent XSS
+    const safeMessage = escapeHtml(message);
+    
     notification.innerHTML = `
         <span class="notification-icon">${icons[type] || icons.info}</span>
         <div class="notification-content">
-            <div class="notification-message">${message}</div>
+            <div class="notification-message">${safeMessage}</div>
         </div>
         <button class="notification-close" onclick="this.parentElement.remove()">×</button>
     `;
@@ -62,7 +72,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
 function checkAuth() {
     authToken = localStorage.getItem('authToken');
-    currentUser = JSON.parse(localStorage.getItem('currentUser') || 'null');
+    // Safe JSON parse with error handling
+    try {
+        currentUser = JSON.parse(localStorage.getItem('currentUser') || 'null');
+    } catch (e) {
+        console.warn('Failed to parse currentUser from localStorage:', e);
+        currentUser = null;
+    }
     currentRole = localStorage.getItem('currentRole');
     
     if (authToken && currentUser && currentRole) {

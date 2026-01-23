@@ -40,13 +40,19 @@ class Database:
             self._db = self._client[cfg.DB_NAME]
             print(f"✅ Connected to MongoDB: {cfg.DB_NAME}")
         return self._db
-        return self._db
     
     def get_db(self):
         """Get database instance"""
         if self._db is None:
             return self.connect()
         return self._db
+    
+    def get_collection(self, collection_name):
+        """Get a collection from the database"""
+        db = self.get_db()
+        if db is not None:
+            return db[collection_name]
+        return None
     
     def close(self):
         """Close database connection"""

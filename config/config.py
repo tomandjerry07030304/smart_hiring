@@ -6,14 +6,18 @@ load_dotenv()
 class Config:
     """Base configuration"""
     # SECURITY: Generate strong secrets using: python -c "import secrets; print(secrets.token_hex(32))"
-    SECRET_KEY = os.getenv('SECRET_KEY')
-    JWT_SECRET_KEY = os.getenv('JWT_SECRET_KEY')
+    SECRET_KEY = os.getenv('SECRET_KEY', 'dev-secret-key-change-in-production-min32chars')
+    JWT_SECRET_KEY = os.getenv('JWT_SECRET_KEY', 'dev-jwt-secret-key-change-in-production-32ch')
     
-    # Validate secrets are set
-    if not SECRET_KEY or len(SECRET_KEY) < 32:
-        raise ValueError('SECRET_KEY must be set and at least 32 characters long')
-    if not JWT_SECRET_KEY or len(JWT_SECRET_KEY) < 32:
-        raise ValueError('JWT_SECRET_KEY must be set and at least 32 characters long')
+    @classmethod
+    def validate_production_secrets(cls):
+        """Validate secrets in production - call this during app initialization"""
+        env = os.getenv('FLASK_ENV', 'development')
+        if env == 'production':
+            if not cls.SECRET_KEY or len(cls.SECRET_KEY) < 32 or 'dev-' in cls.SECRET_KEY:
+                raise ValueError('SECRET_KEY must be set to a secure value (at least 32 characters) in production')
+            if not cls.JWT_SECRET_KEY or len(cls.JWT_SECRET_KEY) < 32 or 'dev-' in cls.JWT_SECRET_KEY:
+                raise ValueError('JWT_SECRET_KEY must be set to a secure value (at least 32 characters) in production')
     
     JWT_ACCESS_TOKEN_EXPIRES = int(os.getenv('JWT_ACCESS_TOKEN_EXPIRES', 3600))
     

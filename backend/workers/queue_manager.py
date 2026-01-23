@@ -5,12 +5,20 @@ Uses Redis for queue management and job persistence
 
 import os
 import json
-import redis
 from datetime import datetime, timedelta
 from typing import Dict, Any, Optional
 import logging
 
 logger = logging.getLogger(__name__)
+
+# Safe import of redis
+try:
+    import redis
+    REDIS_AVAILABLE = True
+except ImportError:
+    redis = None
+    REDIS_AVAILABLE = False
+    logger.warning("⚠️ Redis module not installed. Queue manager will run in fallback mode.")
 
 
 class QueueManager:
@@ -20,7 +28,10 @@ class QueueManager:
         """Initialize Redis connection"""
         self.redis_url = os.getenv('REDIS_URL', 'redis://localhost:6379/0')
         self.redis_client = None
-        self._connect()
+        if REDIS_AVAILABLE:
+            self._connect()
+        else:
+            logger.warning("⚠️ Redis not available - running without background queues")
         
         # Queue names
         self.RESUME_PARSING_QUEUE = 'queue:resume_parsing'
@@ -31,6 +42,8 @@ class QueueManager:
         
     def _connect(self):
         """Establish Redis connection"""
+        if not REDIS_AVAILABLE:
+            return
         try:
             self.redis_client = redis.from_url(
                 self.redis_url,

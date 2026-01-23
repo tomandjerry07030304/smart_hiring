@@ -290,7 +290,8 @@ def get_profile():
     """Get current user profile"""
     try:
         current_user = get_jwt_identity()
-        user_id = current_user['user_id']
+        # Handle both string and dict identity formats
+        user_id = current_user if isinstance(current_user, str) else current_user.get('user_id', current_user)
         
         db = get_db()
         users_collection = db['users']
@@ -486,7 +487,8 @@ def change_password():
     """Change password for logged-in user"""
     try:
         current_user = get_jwt_identity()
-        user_id = current_user['user_id']
+        # Handle both string and dict identity formats
+        user_id = current_user if isinstance(current_user, str) else current_user.get('user_id', current_user)
         data = request.get_json()
         
         # Validate required fields
@@ -554,7 +556,8 @@ def update_profile():
     """Update user profile"""
     try:
         current_user = get_jwt_identity()
-        user_id = current_user['user_id']
+        # Handle both string and dict identity formats
+        user_id = current_user if isinstance(current_user, str) else current_user.get('user_id', current_user)
         data = request.get_json()
         
         db = get_db()
