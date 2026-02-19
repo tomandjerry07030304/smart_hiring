@@ -5,6 +5,74 @@ Resume parsing background tasks
 from backend.celery_config import celery_app, SafeTask
 from datetime import datetime
 import os
+import ipaddress
+import logging
+from urllib.parse import urlparse
+
+logger = logging.getLogger(__name__)
+
+# ── SSRF protection (Gap 7) ──────────────────────────────────
+
+# Allowed schemes for resume downloads
+_ALLOWED_SCHEMES = {'http', 'https'}
+
+# Blocked IP ranges (RFC 1918 / loopback / link-local / metadata)
+_BLOCKED_NETWORKS = [
+    ipaddress.ip_network('127.0.0.0/8'),       # loopback
+    ipaddress.ip_network('10.0.0.0/8'),         # private
+    ipaddress.ip_network('172.16.0.0/12'),      # private
+    ipaddress.ip_network('192.168.0.0/16'),     # private
+    ipaddress.ip_network('169.254.0.0/16'),     # link-local / cloud metadata
+    ipaddress.ip_network('0.0.0.0/8'),          # "this" network
+    ipaddress.ip_network('::1/128'),            # IPv6 loopback
+    ipaddress.ip_network('fc00::/7'),           # IPv6 unique-local
+    ipaddress.ip_network('fe80::/10'),          # IPv6 link-local
+]
+
+# Optional allowlist — if set, ONLY these domains are permitted
+_ALLOWED_DOMAINS = set(
+    d.strip() for d in os.getenv('RESUME_DOWNLOAD_ALLOWED_DOMAINS', '').split(',') if d.strip()
+)
+
+
+def validate_url_ssrf(url: str) -> str:
+    """
+    Validate a URL against SSRF attacks.
+
+    Raises ValueError if the URL targets a private/internal network
+    or uses a disallowed scheme.
+    """
+    import socket
+
+    parsed = urlparse(url)
+
+    # 1. Scheme check
+    if parsed.scheme not in _ALLOWED_SCHEMES:
+        raise ValueError(f"Blocked URL scheme: {parsed.scheme}")
+
+    hostname = parsed.hostname
+    if not hostname:
+        raise ValueError("URL has no hostname")
+
+    # 2. Domain allowlist (if configured)
+    if _ALLOWED_DOMAINS and hostname not in _ALLOWED_DOMAINS:
+        raise ValueError(f"Domain not in allowlist: {hostname}")
+
+    # 3. Resolve hostname → IP and check against blocked ranges
+    try:
+        resolved_ips = socket.getaddrinfo(hostname, None)
+    except socket.gaierror:
+        raise ValueError(f"Cannot resolve hostname: {hostname}")
+
+    for family, _, _, _, sockaddr in resolved_ips:
+        ip = ipaddress.ip_address(sockaddr[0])
+        for network in _BLOCKED_NETWORKS:
+            if ip in network:
+                raise ValueError(
+                    f"Blocked: {hostname} resolves to private/internal IP {ip}"
+                )
+
+    return url
 
 
 @celery_app.task(base=SafeTask, bind=True, name='parse_resume')
@@ -24,7 +92,12 @@ def parse_resume_task(self, resume_url, application_id, filename='resume.pdf'):
         
         # Download resume file
         if resume_url.startswith('http'):
-            response = requests.get(resume_url, timeout=30)
+            # Gap 7: SSRF protection — validate URL before downloading
+            validate_url_ssrf(resume_url)
+            response = requests.get(resume_url, timeout=30, allow_redirects=False)
+            # Block redirect-based SSRF (e.g. 302 → http://169.254.169.254)
+            if response.status_code in (301, 302, 303, 307, 308):
+                raise ValueError(f"Blocked redirect from resume URL: {response.headers.get('Location')}")
             file_content = response.content
         else:
             # Local file path

@@ -7,11 +7,14 @@ from backend.models.database import get_db
 from backend.utils.email_service import email_service
 from backend.utils.matching import calculate_skill_match, compute_overall_score, extract_skills
 from backend.routes.audit_routes import log_audit_event
+from backend.security.rbac import require_permission, Permissions
+from backend.services.video_interview_service import create_interview_session
 
 bp = Blueprint('company', __name__)
 
 @bp.route('/applications/<application_id>/status', methods=['PUT'])
 @jwt_required()
+@require_permission(Permissions.MANAGE_APPLICATIONS)
 def update_application_status(application_id):
     """Update application status with history tracking"""
     try:
@@ -35,12 +38,14 @@ def update_application_status(application_id):
             user = users_collection.find_one({'_id': ObjectId(user_id)})
             recruiter_email = user.get('email') if user else 'Unknown'
         
-        if role not in ['company', 'admin']:
+        if (role or '').lower() not in ['company', 'recruiter', 'admin']:
             return jsonify({'error': 'Only recruiters can update application status'}), 403
         
         data = request.get_json()
         new_status = data.get('status')
         note = data.get('note', '')
+        interview_date = data.get('interview_date')
+        meeting_link = data.get('meeting_link')
         
         # Validate status
         valid_statuses = ['pending', 'shortlisted', 'interviewed', 'hired', 'rejected']
@@ -55,6 +60,39 @@ def update_application_status(application_id):
         if not application:
             return jsonify({'error': 'Application not found'}), 404
         
+        # Auto-create internal interview session when status = interviewed
+        if new_status == 'interviewed':
+            try:
+                base_url = request.host_url.rstrip('/')
+                job_id = str(application.get('job_id', ''))
+                candidate_id = str(application.get('candidate_id', ''))
+                
+                from datetime import timedelta
+                scheduled_time = None
+                if interview_date:
+                    try:
+                        scheduled_time = datetime.fromisoformat(interview_date)
+                    except (ValueError, TypeError):
+                        pass
+                
+                session_doc = create_interview_session(
+                    job_id=job_id,
+                    candidate_id=candidate_id,
+                    scheduled_by=user_id,
+                    interview_type='ai_automated',
+                    duration_minutes=90,
+                    base_url=base_url,
+                    scheduled_time_utc=scheduled_time,
+                )
+                meeting_link = session_doc.get('meeting_link', '')
+            except Exception as interview_err:
+                print(f"⚠️ Failed to create interview session: {interview_err}")
+                # Fallback: generate a simple link
+                import secrets
+                token = secrets.token_urlsafe(32)
+                base_url = request.host_url.rstrip('/')
+                meeting_link = f"{base_url}/interview/room/{token}"
+        
         old_status = application.get('status', 'pending')
         
         # Create status history entry
@@ -68,17 +106,26 @@ def update_application_status(application_id):
             'previous_status': old_status
         })
         
+        # Prepare update data
+        update_data = {
+            'status': new_status,
+            'status_updated_at': datetime.utcnow(),
+            'status_updated_by': user_id,
+            'status_history': status_history
+        }
+        
+        # Add interview details if status is interviewed
+        if new_status == 'interviewed':
+            if interview_date:
+                update_data['interview_date'] = interview_date
+            if meeting_link:
+                update_data['meeting_link'] = meeting_link
+            update_data['interview_scheduled'] = True
+        
         # Update application
         result = applications_collection.update_one(
             {'_id': ObjectId(application_id)},
-            {
-                '$set': {
-                    'status': new_status,
-                    'status_updated_at': datetime.utcnow(),
-                    'status_updated_by': user_id,
-                    'status_history': status_history
-                }
-            }
+            {'$set': update_data}
         )
         
         if result.modified_count == 0:
@@ -95,20 +142,35 @@ def update_application_status(application_id):
             job = jobs_collection.find_one({'_id': ObjectId(application.get('job_id'))})
             
             if candidate_user and job:
-                email_service.send_status_update_email(
-                    to_email=candidate_user.get('email'),
-                    candidate_name=candidate_user.get('full_name'),
-                    job_title=job.get('title'),
-                    new_status=new_status,
-                    note=note if note else None
-                )
+                # If status is interviewed and we have interview details, send interview invitation
+                if new_status == 'interviewed' and meeting_link:
+                    # Import the interview invitation method if available
+                    # For now, send enhanced status update with interview details
+                    email_service.send_status_update_email(
+                        to_email=candidate_user.get('email'),
+                        candidate_name=candidate_user.get('full_name'),
+                        job_title=job.get('title'),
+                        new_status=new_status,
+                        note=note if note else None,
+                        interview_date=interview_date,
+                        meeting_link=meeting_link
+                    )
+                else:
+                    email_service.send_status_update_email(
+                        to_email=candidate_user.get('email'),
+                        candidate_name=candidate_user.get('full_name'),
+                        job_title=job.get('title'),
+                        new_status=new_status,
+                        note=note if note else None
+                    )
         except Exception as email_error:
             print(f"⚠️ Status update email failed: {email_error}")
         
         return jsonify({
             'message': 'Status updated successfully',
             'new_status': new_status,
-            'application_id': application_id
+            'application_id': application_id,
+            'meeting_link': meeting_link if new_status == 'interviewed' else None
         }), 200
         
     except Exception as e:
@@ -116,6 +178,7 @@ def update_application_status(application_id):
 
 @bp.route('/applications/<application_id>/history', methods=['GET'])
 @jwt_required()
+@require_permission(Permissions.VIEW_APPLICATIONS)
 def get_application_history(application_id):
     """Get status change history for an application"""
     try:
@@ -166,6 +229,7 @@ def get_application_history(application_id):
 
 @bp.route('/applications/stats', methods=['GET'])
 @jwt_required()
+@require_permission(Permissions.VIEW_APPLICATIONS)
 def get_application_stats():
     """Get application statistics for recruiter"""
     try:
@@ -225,6 +289,7 @@ def get_application_stats():
 
 @bp.route('/jobs/<job_id>/ranked-candidates', methods=['GET'])
 @jwt_required()
+@require_permission(Permissions.VIEW_CANDIDATES)
 def get_ranked_candidates(job_id):
     """Get ranked list of candidates for a specific job"""
     try:

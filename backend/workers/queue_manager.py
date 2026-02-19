@@ -11,14 +11,20 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+# Check if Redis is explicitly disabled
+REDIS_ENABLED = os.getenv('REDIS_ENABLED', 'true').lower() == 'true'
+
 # Safe import of redis
 try:
     import redis
-    REDIS_AVAILABLE = True
+    REDIS_AVAILABLE = True and REDIS_ENABLED
 except ImportError:
     redis = None
     REDIS_AVAILABLE = False
-    logger.warning("⚠️ Redis module not installed. Queue manager will run in fallback mode.")
+    if REDIS_ENABLED:
+        logger.warning("⚠️ Redis module not installed. Queue manager will run in fallback mode.")
+    else:
+        logger.info("ℹ️ Redis disabled via REDIS_ENABLED=false")
 
 
 class QueueManager:
@@ -28,8 +34,10 @@ class QueueManager:
         """Initialize Redis connection"""
         self.redis_url = os.getenv('REDIS_URL', 'redis://localhost:6379/0')
         self.redis_client = None
-        if REDIS_AVAILABLE:
+        if REDIS_AVAILABLE and REDIS_ENABLED:
             self._connect()
+        elif not REDIS_ENABLED:
+            logger.info("ℹ️ Redis disabled - running without background queues")
         else:
             logger.warning("⚠️ Redis not available - running without background queues")
         
@@ -56,7 +64,10 @@ class QueueManager:
             self.redis_client.ping()
             logger.info("✅ Redis connection established")
         except Exception as e:
-            logger.warning(f"⚠️ Redis not available: {e}. Using fallback mode.")
+            if REDIS_ENABLED:
+                logger.warning(f"⚠️ Redis not available: {e}. Using fallback mode.")
+            else:
+                logger.info("ℹ️ Redis disabled via REDIS_ENABLED=false")
             self.redis_client = None
     
     def is_available(self) -> bool:

@@ -9,6 +9,7 @@ from datetime import datetime
 from bson import ObjectId
 
 from backend.models.database import get_db
+from backend.security.rbac import require_permission, Permissions
 
 bp = Blueprint('audit', __name__)
 
@@ -52,6 +53,7 @@ def log_audit_event(event_type, user_id, job_id=None, candidate_id=None,
 
 @bp.route('/logs', methods=['GET'])
 @jwt_required()
+@require_permission(Permissions.VIEW_AUDIT_LOGS)
 def get_audit_logs():
     """Get audit logs (admin only)"""
     try:
@@ -109,6 +111,7 @@ def get_audit_logs():
 
 @bp.route('/report', methods=['GET'])
 @jwt_required()
+@require_permission(Permissions.VIEW_AUDIT_LOGS)
 def generate_audit_report():
     """Generate comprehensive fairness audit report"""
     try:
@@ -206,6 +209,7 @@ def generate_audit_report():
 
 @bp.route('/job/<job_id>/report', methods=['GET'])
 @jwt_required()
+@require_permission(Permissions.VIEW_AUDIT_LOGS)
 def get_job_audit_report(job_id):
     """Get audit report for a specific job"""
     try:
@@ -277,6 +281,7 @@ def get_job_audit_report(job_id):
 
 @bp.route('/ml-metrics', methods=['GET'])
 @jwt_required()
+@require_permission(Permissions.VIEW_ANALYTICS)
 def get_ml_metrics():
     """
     P0 ML: Get ML system metrics (admin only)
@@ -335,6 +340,7 @@ def get_ml_metrics():
 
 @bp.route('/fairness-audit', methods=['POST'])
 @jwt_required()
+@require_permission(Permissions.MANAGE_COMPLIANCE)
 def run_fairness_audit():
     """
     P0 ML: Run fairness audit on hiring decisions
@@ -396,22 +402,39 @@ def run_fairness_audit():
             from backend.services.fairness_audit_service import get_fairness_service
             fairness_service = get_fairness_service()
             
-            # Convert applications for audit
+            # Gap 8: Use real opt-in demographic data instead of score_group proxy
             audit_data = []
+            attribute_fields_found = set()
             for app in applications:
-                audit_data.append({
+                entry = {
                     'decision': app.get('status', 'pending'),
                     'overall_score': app.get('overall_score', 0),
-                    # Note: In production, you'd have demographic data
-                    # For demo, we'll audit by score ranges
-                    'score_group': 'high' if app.get('overall_score', 0) >= 70 else 'low'
-                })
+                }
+                # Look up candidate demographics from opt-in self-identification
+                candidate_id = app.get('candidate_id') or app.get('user_id')
+                if candidate_id:
+                    candidate = db['candidates'].find_one({'user_id': str(candidate_id)})
+                    demographics = (candidate or {}).get('demographics', {})
+                    for attr in ('gender', 'age_group', 'ethnicity'):
+                        if attr in demographics and demographics[attr] != 'prefer_not_to_say':
+                            entry[attr] = demographics[attr]
+                            attribute_fields_found.add(attr)
+
+                # Fallback: keep score_group for candidates without opt-in data
+                if not any(a in entry for a in ('gender', 'age_group', 'ethnicity')):
+                    entry['score_group'] = 'high' if app.get('overall_score', 0) >= 70 else 'low'
+                    attribute_fields_found.add('score_group')
+
+                audit_data.append(entry)
+
+            # Use real demographic fields when available, otherwise fall back to score_group
+            attribute_fields = sorted(attribute_fields_found)
             
             # Run audit
             audit_result = fairness_service.audit_application_batch(
                 audit_data,
                 decision_field='decision',
-                attribute_fields=['score_group']  # Demo attribute
+                attribute_fields=attribute_fields
             )
             
             return jsonify({

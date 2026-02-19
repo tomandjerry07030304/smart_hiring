@@ -9,21 +9,23 @@ from pathlib import Path
 # Add parent directory to path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-from backend.utils.resume_parser import extract_text_from_pdf, extract_text_from_docx, anonymize_text
+from backend.services.resume_parser_service import extract_text_from_pdf, extract_text_from_docx, anonymize_text
 
 
 class TestTextExtraction:
     """Test text extraction from documents"""
     
     def test_extract_text_from_pdf_file_not_found(self):
-        """Test PDF extraction with non-existent file"""
-        with pytest.raises(FileNotFoundError):
-            extract_text_from_pdf("nonexistent.pdf")
+        """Test PDF extraction with non-existent file - should handle gracefully"""
+        result = extract_text_from_pdf("nonexistent.pdf")
+        # New unified service handles errors gracefully instead of raising
+        assert "Error" in result or "not found" in result.lower() or "No such file" in result
     
     def test_extract_text_from_docx_file_not_found(self):
-        """Test DOCX extraction with non-existent file"""
-        with pytest.raises(FileNotFoundError):
-            extract_text_from_docx("nonexistent.docx")
+        """Test DOCX extraction with non-existent file - should handle gracefully"""
+        result = extract_text_from_docx("nonexistent.docx")
+        # New unified service handles errors gracefully instead of raising
+        assert "Error" in result or "not found" in result.lower() or "Package not found" in result
 
 
 class TestAnonymization:

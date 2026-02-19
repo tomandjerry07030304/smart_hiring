@@ -13,12 +13,14 @@ from backend.utils.responses import (
     no_content_response,
     forbidden
 )
+from backend.security.rbac import require_role
 
 webhooks_bp = Blueprint('webhooks', __name__)
 
 
 @webhooks_bp.route('/subscriptions', methods=['POST'])
 @jwt_required()
+@require_role(['admin', 'company'])
 def create_subscription():
     """Create new webhook subscription"""
     current_user_id = get_jwt_identity()
@@ -68,6 +70,7 @@ def create_subscription():
 
 @webhooks_bp.route('/subscriptions', methods=['GET'])
 @jwt_required()
+@require_role(['admin', 'company'])
 def list_subscriptions():
     """List user's webhook subscriptions"""
     current_user_id = get_jwt_identity()
@@ -97,6 +100,7 @@ def list_subscriptions():
 
 @webhooks_bp.route('/subscriptions/<subscription_id>', methods=['GET'])
 @jwt_required()
+@require_role(['admin', 'company'])
 def get_subscription(subscription_id):
     """Get webhook subscription details"""
     current_user_id = get_jwt_identity()
@@ -131,6 +135,7 @@ def get_subscription(subscription_id):
 
 @webhooks_bp.route('/subscriptions/<subscription_id>', methods=['PUT'])
 @jwt_required()
+@require_role(['admin', 'company'])
 def update_subscription(subscription_id):
     """Update webhook subscription"""
     current_user_id = get_jwt_identity()
@@ -167,6 +172,7 @@ def update_subscription(subscription_id):
 
 @webhooks_bp.route('/subscriptions/<subscription_id>', methods=['DELETE'])
 @jwt_required()
+@require_role(['admin', 'company'])
 def delete_subscription(subscription_id):
     """Delete webhook subscription"""
     current_user_id = get_jwt_identity()
@@ -193,6 +199,7 @@ def delete_subscription(subscription_id):
 
 @webhooks_bp.route('/subscriptions/<subscription_id>/deliveries', methods=['GET'])
 @jwt_required()
+@require_role(['admin', 'company'])
 def get_delivery_history(subscription_id):
     """Get webhook delivery history"""
     current_user_id = get_jwt_identity()
@@ -231,6 +238,7 @@ def get_delivery_history(subscription_id):
 
 @webhooks_bp.route('/events', methods=['GET'])
 @jwt_required()
+@require_role(['admin', 'company'])
 def list_event_types():
     """List available webhook event types"""
     events = [

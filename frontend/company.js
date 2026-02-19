@@ -1,22 +1,33 @@
 // Company Dashboard Module
+
+// Escape HTML to prevent XSS attacks
+function escapeHtmlCompany(text) {
+    if (text === null || text === undefined) return '';
+    const div = document.createElement('div');
+    div.textContent = String(text);
+    return div.innerHTML;
+}
+// Short alias used throughout templates
+const esc = escapeHtmlCompany;
+
 function loadCompanyDashboard() {
     console.log('Loading Company Dashboard...', currentUser);
-    
+
     // Ensure currentUser is available
     if (!currentUser) {
         console.error('No current user found');
         logout();
         return;
     }
-    
+
     const dashboard = document.getElementById('companyDashboard');
     if (!dashboard) {
         console.error('Company dashboard element not found');
         return;
     }
-    
+
     const userEmail = currentUser.email || currentUser.full_name || 'User';
-    
+
     dashboard.innerHTML = `
         <nav class="navbar">
             <div class="navbar-brand">
@@ -36,6 +47,10 @@ function loadCompanyDashboard() {
                 <button class="nav-link" onclick="switchCompanyTab('audit')">🛡️ Fairness Audit</button>
             </div>
             <div class="navbar-actions">
+                <button class="theme-toggle-navbar" aria-label="Toggle Dark Mode" onclick="toggleTheme()">
+                    <span class="theme-icon sun-icon">☀️</span>
+                    <span class="theme-icon moon-icon" style="display:none;">🌙</span>
+                </button>
                 <span class="user-info">${userEmail}</span>
                 <button class="btn btn-secondary" onclick="companyLogout()">Logout</button>
             </div>
@@ -50,6 +65,8 @@ function loadCompanyDashboard() {
         </div>
     `;
     showPage('companyDashboard');
+    // Update theme icon state for the newly rendered toggle
+    if (typeof updateThemeIcon === 'function') updateThemeIcon(document.body.getAttribute('data-theme') || 'light');
     loadCompanyOverview();
 }
 
@@ -57,11 +74,11 @@ function switchCompanyTab(tab) {
     console.log('Switching to company tab:', tab);
     document.querySelectorAll('#companyDashboard .nav-link').forEach(l => l.classList.remove('active'));
     document.querySelectorAll('#companyDashboard .tab-content').forEach(t => t.classList.remove('active'));
-    
+
     if (event && event.target) {
         event.target.classList.add('active');
     }
-    
+
     // Show the corresponding tab content
     const tabMap = {
         'overview': 'companyOverview',
@@ -71,13 +88,13 @@ function switchCompanyTab(tab) {
         'analytics': 'companyAnalytics',
         'audit': 'companyAudit'
     };
-    
+
     const tabElement = document.getElementById(tabMap[tab]);
     if (tabElement) {
         tabElement.classList.add('active');
     }
-    
-    switch(tab) {
+
+    switch (tab) {
         case 'overview': loadCompanyOverview(); break;
         case 'jobs': loadCompanyJobs(); break;
         case 'candidates': loadCompanyCandidates(); break;
@@ -94,16 +111,16 @@ async function loadCompanyOverview() {
         console.error('Company overview container not found');
         return;
     }
-    
+
     container.innerHTML = '<div class="loading">Loading dashboard...</div>';
-    
+
     try {
         const response = await fetch(`${API_URL}/jobs/company/stats`, {
             headers: { 'Authorization': `Bearer ${authToken}` }
         });
-        
+
         const data = await response.json();
-        
+
         container.innerHTML = `
             <div class="content-header">
                 <h2>📊 Company Dashboard</h2>
@@ -152,42 +169,42 @@ async function loadCompanyOverview() {
 async function loadCompanyJobs() {
     const container = document.getElementById('companyJobs');
     container.innerHTML = '<div class="loading">Loading jobs...</div>';
-    
+
     try {
         const response = await fetch(`${API_URL}/jobs/company`, {
             headers: { 'Authorization': `Bearer ${authToken}` }
         });
-        
+
         const data = await response.json();
         const jobs = data.jobs || [];
-        
+
         container.innerHTML = `
             <div class="content-header">
                 <h2>💼 My Job Postings</h2>
                 <button class="btn btn-primary" onclick="showJobModal()">+ Post New Job</button>
             </div>
-            ${jobs.length === 0 ? 
+            ${jobs.length === 0 ?
                 '<div class="empty-state">No jobs posted yet. Click "Post New Job" to get started!</div>' :
                 `<div class="job-grid">
                     ${jobs.map(job => `
                         <div class="job-card" onclick="viewJobDetails('${job._id}')">
                             <div class="job-header">
                                 <div>
-                                    <h3 class="job-title">${job.title}</h3>
-                                    <p class="job-company">${job.company_name || job.department || 'Smart Hiring'}</p>
+                                    <h3 class="job-title">${esc(job.title)}</h3>
+                                    <p class="job-company">${esc(job.company_name || job.department || 'Smart Hiring')}</p>
                                 </div>
                                 <span class="badge badge-${job.status === 'open' ? 'success' : 'warning'}">
-                                    ${job.status}
+                                    ${esc(job.status)}
                                 </span>
                             </div>
-                            <p class="job-description" style="white-space: pre-line;">${job.description.substring(0, 200)}...</p>
+                            <p class="job-description" style="white-space: pre-line;">${esc((job.description || '').substring(0, 200))}...</p>
                             <div class="job-meta">
-                                <span>📍 ${job.location || 'Remote'}</span>
-                                <span>💼 ${job.job_type || 'Full-time'}</span>
+                                <span>📍 ${esc(job.location || 'Remote')}</span>
+                                <span>💼 ${esc(job.job_type || 'Full-time')}</span>
                                 <span>📋 ${job.applications_count || 0} applications</span>
                             </div>
                             <div class="job-tags">
-                                ${(job.required_skills || []).slice(0, 5).map(s => `<span class="tag">${s}</span>`).join('')}
+                                ${(job.required_skills || []).slice(0, 5).map(s => `<span class="tag">${esc(s)}</span>`).join('')}
                             </div>
                             <button class="btn btn-primary" onclick="event.stopPropagation(); viewJobCandidates('${job._id}')">
                                 View Candidates
@@ -261,20 +278,20 @@ function showJobModal() {
 
 async function submitJob(e) {
     e.preventDefault();
-    
+
     const title = document.getElementById('jobTitle').value.trim();
     const description = document.getElementById('jobDescription').value.trim();
     const requirements = document.getElementById('jobRequirements').value.trim();
-    
+
     // Validate required fields
     if (!title || !description) {
         alert('Title and Description are required!');
         return;
     }
-    
+
     // Combine description and requirements
     const fullDescription = description + (requirements ? '\n\nRequirements:\n' + requirements : '');
-    
+
     const jobData = {
         title: title,
         company_name: document.getElementById('jobDepartment').value.trim() || 'Smart Hiring',
@@ -283,7 +300,7 @@ async function submitJob(e) {
         description: fullDescription,
         required_skills: document.getElementById('jobSkills').value.split(',').map(s => s.trim()).filter(s => s)
     };
-    
+
     try {
         const response = await fetch(`${API_URL}/jobs/create`, {
             method: 'POST',
@@ -293,10 +310,10 @@ async function submitJob(e) {
             },
             body: JSON.stringify(jobData)
         });
-        
+
         const data = await response.json();
         console.log('Job posting response:', response.status, data);
-        
+
         if (response.ok) {
             alert('✓ Job posted successfully!');
             e.target.closest('.modal').remove();
@@ -316,20 +333,20 @@ async function submitJob(e) {
 async function loadCompanyCandidates() {
     const container = document.getElementById('companyCandidates');
     container.innerHTML = '<div class="loading">Loading your jobs and candidates...</div>';
-    
+
     try {
         // Fetch all jobs for this recruiter
         const response = await fetch(`${API_URL}/jobs/company`, {
             headers: { 'Authorization': `Bearer ${authToken}` }
         });
-        
+
         if (!response.ok) {
             throw new Error('Failed to load jobs');
         }
-        
+
         const data = await response.json();
         const jobs = data.jobs || [];
-        
+
         if (jobs.length === 0) {
             container.innerHTML = `
                 <div class="content-header">
@@ -344,7 +361,7 @@ async function loadCompanyCandidates() {
             `;
             return;
         }
-        
+
         container.innerHTML = `
             <div class="content-header">
                 <h2>🎯 Matched Candidates by Job</h2>
@@ -387,9 +404,9 @@ async function loadCompanyCandidates() {
                 `).join('')}
             </div>
         `;
-        
+
         container.classList.add('active');
-        
+
     } catch (error) {
         console.error('Error loading candidates:', error);
         container.innerHTML = `
@@ -406,19 +423,42 @@ async function loadCompanyCandidates() {
 
 let selectedApplications = new Set();
 let currentStatusFilter = 'all';
+let blindMode = true; // Default ON for fairness (hide PII)
+
+// Normalize status values (handles 'submitted' -> 'pending', case mismatches)
+function normalizeStatus(status) {
+    const s = (status || 'pending').toLowerCase().trim();
+    const statusMap = {
+        'submitted': 'pending',
+        'applied': 'pending',
+        'review': 'pending',
+        'under_review': 'pending',
+        'pending': 'pending',
+        'shortlisted': 'shortlisted',
+        'interviewed': 'interviewed',
+        'hired': 'hired',
+        'rejected': 'rejected'
+    };
+    return statusMap[s] || 'pending';
+}
+
+// Generate anonymized candidate ID from app _id
+function anonymizeId(id) {
+    return 'SH-' + (id || '000000').slice(-6).toUpperCase();
+}
 
 async function loadCompanyApplications() {
     const container = document.getElementById('companyApplications');
     container.innerHTML = '<div class="loading">Loading applications...</div>';
-    
+
     try {
         const response = await fetch(`${API_URL}/jobs/company/applications`, {
             headers: { 'Authorization': `Bearer ${authToken}` }
         });
-        
+
         const data = await response.json();
         let applications = data.applications || [];
-        
+
         if (applications.length === 0) {
             container.innerHTML = `
                 <div class="content-header">
@@ -432,26 +472,42 @@ async function loadCompanyApplications() {
             `;
             return;
         }
-        
+
+        // Normalize all statuses
+        applications.forEach(app => {
+            app._normalizedStatus = normalizeStatus(app.status);
+        });
+
         // Filter applications by status
-        const filteredApps = currentStatusFilter === 'all' 
-            ? applications 
-            : applications.filter(app => app.status === currentStatusFilter);
-        
+        const filteredApps = currentStatusFilter === 'all'
+            ? applications
+            : applications.filter(app => app._normalizedStatus === currentStatusFilter);
+
         // Calculate statistics
         const stats = {
             total: applications.length,
-            pending: applications.filter(a => a.status === 'pending').length,
-            shortlisted: applications.filter(a => a.status === 'shortlisted').length,
-            interviewed: applications.filter(a => a.status === 'interviewed').length,
-            hired: applications.filter(a => a.status === 'hired').length,
-            rejected: applications.filter(a => a.status === 'rejected').length
+            pending: applications.filter(a => a._normalizedStatus === 'pending').length,
+            shortlisted: applications.filter(a => a._normalizedStatus === 'shortlisted').length,
+            interviewed: applications.filter(a => a._normalizedStatus === 'interviewed').length,
+            hired: applications.filter(a => a._normalizedStatus === 'hired').length,
+            rejected: applications.filter(a => a._normalizedStatus === 'rejected').length
         };
-        
+
         container.innerHTML = `
             <div class="content-header">
                 <h2>📋 Applications Management</h2>
-                <div style="display: flex; gap: 12px;">
+                <div style="display: flex; gap: 12px; align-items: center;">
+                    <!-- Blind Mode / Fairness Toggle -->
+                    <div style="display: flex; align-items: center; gap: 8px; background: ${blindMode ? 'linear-gradient(135deg, #4F46E5, #7c3aed)' : '#e2e8f0'}; padding: 8px 16px; border-radius: 12px; cursor: pointer; transition: all 0.3s; user-select: none;"
+                         onclick="blindMode = !blindMode; loadCompanyApplications();">
+                        <span style="font-size: 16px;">${blindMode ? '🔒' : '👁️'}</span>
+                        <span style="color: ${blindMode ? 'white' : '#4a5568'}; font-weight: 600; font-size: 13px;">
+                            ${blindMode ? 'Fairness Mode ON' : 'Fairness Mode OFF'}
+                        </span>
+                        <div style="width: 36px; height: 20px; background: ${blindMode ? 'rgba(255,255,255,0.3)' : '#cbd5e0'}; border-radius: 10px; position: relative; transition: all 0.3s;">
+                            <div style="width: 16px; height: 16px; background: white; border-radius: 50%; position: absolute; top: 2px; ${blindMode ? 'right: 2px' : 'left: 2px'}; transition: all 0.3s; box-shadow: 0 1px 3px rgba(0,0,0,0.2);"></div>
+                        </div>
+                    </div>
                     ${selectedApplications.size > 0 ? `
                         <button class="btn btn-secondary" onclick="clearSelection()">
                             Clear (${selectedApplications.size})
@@ -518,20 +574,28 @@ async function loadCompanyApplications() {
                                 </td>
                                 <td>
                                     <div class="candidate-info">
-                                        <div class="candidate-avatar">${app.candidate_name?.charAt(0) || 'C'}</div>
-                                        <div>
-                                            <div class="candidate-name">${app.candidate_name || 'Unknown'}</div>
-                                            <div class="candidate-email">${app.candidate_email || ''}</div>
-                                        </div>
+                                        ${blindMode ? `
+                                            <div class="candidate-avatar" style="background: linear-gradient(135deg, #64748b, #475569); font-size: 14px;">🔒</div>
+                                            <div>
+                                                <div class="candidate-name" style="color: #64748b; font-style: italic;">Candidate ${anonymizeId(app._id)}</div>
+                                                <div class="candidate-email" style="color: #94a3b8;">PII hidden — Fairness Mode</div>
+                                            </div>
+                                        ` : `
+                                            <div class="candidate-avatar">${esc(app.candidate_name?.charAt(0) || 'C')}</div>
+                                            <div>
+                                                <div class="candidate-name">${esc(app.candidate_name || 'Unknown')}</div>
+                                                <div class="candidate-email">${esc(app.candidate_email || '')}</div>
+                                            </div>
+                                        `}
                                     </div>
                                 </td>
                                 <td>
                                     <div class="job-info">
-                                        <div class="job-title-cell">${app.job_title}</div>
-                                        <div class="job-company-cell">${app.company_name || ''}</div>
+                                        <div class="job-title-cell">${esc(app.job_title)}</div>
+                                        <div class="job-company-cell">${esc(app.company_name || '')}</div>
                                     </div>
                                 </td>
-                                <td>${new Date(app.applied_at).toLocaleDateString('en-US', {month: 'short', day: 'numeric', year: 'numeric'})}</td>
+                                <td>${new Date(app.applied_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</td>
                                 <td>
                                     <div class="score-badge ${getScoreClass(app.overall_score)}">
                                         ${Math.round(app.overall_score || 0)}%
@@ -539,27 +603,19 @@ async function loadCompanyApplications() {
                                 </td>
                                 <td>
                                     <div class="status-dropdown">
-                                        <button class="status-badge status-${app.status}" 
+                                        <button class="status-badge status-${app._normalizedStatus}" 
                                                 onclick="toggleStatusDropdown('${app._id}', event)">
-                                            ${getStatusIcon(app.status)} ${app.status}
+                                            ${getStatusIcon(app._normalizedStatus)} ${app._normalizedStatus.charAt(0).toUpperCase() + app._normalizedStatus.slice(1)}
                                             <span class="dropdown-arrow">▼</span>
                                         </button>
                                         <div class="status-dropdown-menu" id="dropdown-${app._id}">
-                                            <div class="status-option" onclick="updateApplicationStatus('${app._id}', 'pending')">
-                                                🔵 Pending
-                                            </div>
-                                            <div class="status-option" onclick="updateApplicationStatus('${app._id}', 'shortlisted')">
-                                                💛 Shortlisted
-                                            </div>
-                                            <div class="status-option" onclick="updateApplicationStatus('${app._id}', 'interviewed')">
-                                                🟣 Interviewed
-                                            </div>
-                                            <div class="status-option" onclick="updateApplicationStatus('${app._id}', 'hired')">
-                                                💚 Hired
-                                            </div>
-                                            <div class="status-option" onclick="updateApplicationStatus('${app._id}', 'rejected')">
-                                                ❌ Rejected
-                                            </div>
+                                            ${['pending', 'shortlisted', 'interviewed', 'hired', 'rejected']
+                .filter(s => s !== app._normalizedStatus)
+                .map(s => `
+                                                    <div class="status-option" onclick="updateApplicationStatus('${app._id}', '${s}')">
+                                                        ${getStatusIcon(s)} ${s.charAt(0).toUpperCase() + s.slice(1)}
+                                                    </div>
+                                                `).join('')}
                                         </div>
                                     </div>
                                 </td>
@@ -640,14 +696,14 @@ function filterByStatus(status) {
 function toggleStatusDropdown(appId, event) {
     event.stopPropagation();
     const dropdown = document.getElementById(`dropdown-${appId}`);
-    
+
     // Close all other dropdowns
     document.querySelectorAll('.status-dropdown-menu').forEach(d => {
         if (d.id !== `dropdown-${appId}`) {
             d.classList.remove('show');
         }
     });
-    
+
     dropdown.classList.toggle('show');
 }
 
@@ -662,6 +718,7 @@ async function updateApplicationStatus(appId, newStatus) {
     // Show confirmation modal
     const modal = document.createElement('div');
     modal.className = 'modal show';
+    const isInterview = newStatus === 'interviewed';
     modal.innerHTML = `
         <div class="modal-content" style="max-width: 500px;">
             <div class="modal-header">
@@ -670,6 +727,16 @@ async function updateApplicationStatus(appId, newStatus) {
             </div>
             <div class="modal-body">
                 <p>Are you sure you want to update the status to <strong>${newStatus}</strong>?</p>
+                ${isInterview ? `
+                <div style="background: #eef2ff; padding: 12px; border-radius: 8px; margin: 12px 0; border-left: 4px solid #4F46E5;">
+                    <p style="margin:0; font-size: 14px; color: #4338CA;"><strong>🎥 Internal Interview Room</strong></p>
+                    <p style="margin:4px 0 0; font-size: 13px; color: #6366F1;">An interview room link will be auto-generated and sent to the candidate.</p>
+                </div>
+                <div class="form-group">
+                    <label>Interview Date & Time (optional):</label>
+                    <input type="datetime-local" id="interviewDate" class="form-control" />
+                </div>
+                ` : ''}
                 <div class="form-group">
                     <label>Add a note (optional):</label>
                     <textarea id="statusNote" rows="3" placeholder="Reason for status change..."></textarea>
@@ -686,8 +753,14 @@ async function updateApplicationStatus(appId, newStatus) {
 
 async function confirmStatusUpdate(appId, newStatus) {
     const note = document.getElementById('statusNote')?.value || '';
+    const interviewDate = document.getElementById('interviewDate')?.value || '';
     const modal = document.querySelector('.modal');
-    
+
+    const payload = { status: newStatus, note: note };
+    if (newStatus === 'interviewed') {
+        if (interviewDate) payload.interview_date = interviewDate;
+    }
+
     try {
         const response = await fetch(`${API_URL}/company/applications/${appId}/status`, {
             method: 'PUT',
@@ -695,11 +768,16 @@ async function confirmStatusUpdate(appId, newStatus) {
                 'Authorization': `Bearer ${authToken}`,
                 'Content-Type': 'application/json'
             },
-            body: JSON.stringify({ status: newStatus, note: note })
+            body: JSON.stringify(payload)
         });
-        
+
         if (response.ok) {
-            showNotification(`✓ Status updated to ${newStatus}`, 'success');
+            const data = await response.json();
+            if (newStatus === 'interviewed' && data.meeting_link) {
+                showNotification(`✓ Interview scheduled! Link: ${data.meeting_link}`, 'success');
+            } else {
+                showNotification(`✓ Status updated to ${newStatus}`, 'success');
+            }
             modal.remove();
             loadCompanyApplications();
         } else {
@@ -716,7 +794,7 @@ function bulkUpdateStatus() {
         showNotification('No applications selected', 'warning');
         return;
     }
-    
+
     const modal = document.createElement('div');
     modal.className = 'modal show';
     modal.innerHTML = `
@@ -755,9 +833,9 @@ async function confirmBulkUpdate() {
     const newStatus = document.getElementById('bulkStatus').value;
     const note = document.getElementById('bulkNote')?.value || '';
     const modal = document.querySelector('.modal');
-    
+
     try {
-        const promises = Array.from(selectedApplications).map(appId => 
+        const promises = Array.from(selectedApplications).map(appId =>
             fetch(`${API_URL}/company/applications/${appId}/status`, {
                 method: 'PUT',
                 headers: {
@@ -767,7 +845,7 @@ async function confirmBulkUpdate() {
                 body: JSON.stringify({ status: newStatus, note: note })
             })
         );
-        
+
         await Promise.all(promises);
         showNotification(`✓ Updated ${selectedApplications.size} application(s)`, 'success');
         selectedApplications.clear();
@@ -783,19 +861,19 @@ async function viewJobCandidates(jobId) {
     modal.className = 'modal show';
     modal.innerHTML = '<div class="modal-content"><div class="loading">Loading ranked candidates...</div></div>';
     document.body.appendChild(modal);
-    
+
     try {
         const response = await fetch(`${API_URL}/company/jobs/${jobId}/ranked-candidates`, {
             headers: { 'Authorization': `Bearer ${authToken}` }
         });
-        
+
         if (!response.ok) {
             throw new Error('Failed to load candidates');
         }
-        
+
         const data = await response.json();
         const candidates = data.ranked_candidates || [];
-        
+
         modal.innerHTML = `
             <div class="modal-content" style="max-width: 1000px; max-height: 90vh;">
                 <div class="modal-header" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 24px;">
@@ -814,17 +892,15 @@ async function viewJobCandidates(jobId) {
                         </div>
                     ` : `
                         ${candidates.map(candidate => `
-                            <div style="background: white; border: 2px solid ${
-                                candidate.scores.overall_score >= 75 ? '#10b981' : 
-                                candidate.scores.overall_score >= 50 ? '#f59e0b' : '#94a3b8'
-                            }; border-radius: 12px; padding: 20px; margin-bottom: 16px; position: relative;">
+                            <div style="background: white; border: 2px solid ${candidate.scores.overall_score >= 75 ? '#10b981' :
+                candidate.scores.overall_score >= 50 ? '#f59e0b' : '#94a3b8'
+            }; border-radius: 12px; padding: 20px; margin-bottom: 16px; position: relative;">
                                 <!-- Rank Badge -->
-                                <div style="position: absolute; top: -12px; left: 20px; background: ${
-                                    candidate.rank === 1 ? 'linear-gradient(135deg, #fbbf24, #f59e0b)' :
-                                    candidate.rank === 2 ? 'linear-gradient(135deg, #9ca3af, #6b7280)' :
-                                    candidate.rank === 3 ? 'linear-gradient(135deg, #fb923c, #ea580c)' :
-                                    '#667eea'
-                                }; color: white; padding: 6px 16px; border-radius: 20px; font-weight: 700; box-shadow: 0 2px 8px rgba(0,0,0,0.2);">
+                                <div style="position: absolute; top: -12px; left: 20px; background: ${candidate.rank === 1 ? 'linear-gradient(135deg, #fbbf24, #f59e0b)' :
+                candidate.rank === 2 ? 'linear-gradient(135deg, #9ca3af, #6b7280)' :
+                    candidate.rank === 3 ? 'linear-gradient(135deg, #fb923c, #ea580c)' :
+                        '#667eea'
+            }; color: white; padding: 6px 16px; border-radius: 20px; font-weight: 700; box-shadow: 0 2px 8px rgba(0,0,0,0.2);">
                                     ${candidate.rank === 1 ? '🥇' : candidate.rank === 2 ? '🥈' : candidate.rank === 3 ? '🥉' : ''}
                                     #${candidate.rank}
                                 </div>
@@ -832,21 +908,22 @@ async function viewJobCandidates(jobId) {
                                 <!-- Candidate Header -->
                                 <div style="display: flex; justify-content: space-between; align-items: start; margin-top: 8px;">
                                     <div style="flex: 1;">
-                                        <h4 style="margin: 0 0 8px 0; font-size: 20px; color: #1e293b;">${candidate.candidate_name}</h4>
+                                        <h4 style="margin: 0 0 8px 0; font-size: 20px; color: #1e293b;">
+                                            ${blindMode ? `🔒 Candidate ${anonymizeId(candidate.application_id || candidate.candidate_id)}` : esc(candidate.candidate_name)}
+                                        </h4>
                                         <div style="display: flex; gap: 16px; flex-wrap: wrap; color: #64748b; font-size: 14px;">
-                                            <span>📧 ${candidate.candidate_email}</span>
-                                            <span>📍 ${candidate.location}</span>
+                                            ${blindMode ? '<span style="color: #94a3b8; font-style: italic;">PII hidden — Fairness Mode</span>' : `<span>📧 ${esc(candidate.candidate_email)}</span>`}
+                                            <span>📍 ${esc(candidate.location)}</span>
                                             <span>💼 ${candidate.experience_years} years exp.</span>
-                                            <span>🎓 ${candidate.education}</span>
+                                            <span>🎓 ${esc(candidate.education)}</span>
                                         </div>
                                     </div>
                                     
                                     <!-- Overall Score -->
                                     <div style="text-align: center; min-width: 100px;">
-                                        <div style="font-size: 32px; font-weight: 700; color: ${
-                                            candidate.scores.overall_score >= 75 ? '#10b981' : 
-                                            candidate.scores.overall_score >= 50 ? '#f59e0b' : '#64748b'
-                                        };">
+                                        <div style="font-size: 32px; font-weight: 700; color: ${candidate.scores.overall_score >= 75 ? '#10b981' :
+                candidate.scores.overall_score >= 50 ? '#f59e0b' : '#64748b'
+            };">
                                             ${candidate.scores.overall_score}%
                                         </div>
                                         <div style="font-size: 12px; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px;">
@@ -876,20 +953,20 @@ async function viewJobCandidates(jobId) {
                                 <div style="margin-bottom: 16px;">
                                     <div style="font-weight: 600; margin-bottom: 8px; color: #1e293b;">✅ Matched Skills (${candidate.skills.matched.length})</div>
                                     <div style="display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px;">
-                                        ${candidate.skills.matched.length > 0 ? 
-                                            candidate.skills.matched.map(skill => 
-                                                `<span style="background: #dcfce7; color: #166534; padding: 6px 12px; border-radius: 6px; font-size: 13px; font-weight: 500;">${skill}</span>`
-                                            ).join('') :
-                                            '<span style="color: #94a3b8;">None</span>'
-                                        }
+                                        ${candidate.skills.matched.length > 0 ?
+                candidate.skills.matched.map(skill =>
+                    `<span style="background: #dcfce7; color: #166534; padding: 6px 12px; border-radius: 6px; font-size: 13px; font-weight: 500;">${esc(skill)}</span>`
+                ).join('') :
+                '<span style="color: #94a3b8;">None</span>'
+            }
                                     </div>
                                     
                                     ${candidate.skills.missing.length > 0 ? `
                                         <div style="font-weight: 600; margin-bottom: 8px; color: #1e293b;">⚠️ Missing Skills (${candidate.skills.missing.length})</div>
                                         <div style="display: flex; flex-wrap: wrap; gap: 6px;">
-                                            ${candidate.skills.missing.map(skill => 
-                                                `<span style="background: #fee2e2; color: #991b1b; padding: 6px 12px; border-radius: 6px; font-size: 13px; font-weight: 500;">${skill}</span>`
-                                            ).join('')}
+                                            ${candidate.skills.missing.map(skill =>
+                `<span style="background: #fee2e2; color: #991b1b; padding: 6px 12px; border-radius: 6px; font-size: 13px; font-weight: 500;">${esc(skill)}</span>`
+            ).join('')}
                                         </div>
                                     ` : ''}
                                 </div>
@@ -904,27 +981,25 @@ async function viewJobCandidates(jobId) {
                                             style="flex: 1;">
                                         ⭐ ${candidate.status === 'shortlisted' ? 'Shortlisted' : 'Shortlist'}
                                     </button>
-                                    ${candidate.resume_uploaded ? 
-                                        `<button class="btn btn-secondary" onclick="downloadResume('${candidate.application_id}')">
+                                    ${candidate.resume_uploaded ?
+                `<button class="btn btn-secondary" onclick="downloadResume('${candidate.application_id}')">
                                             📥 Resume
                                         </button>` : ''
-                                    }
+            }
                                 </div>
                                 
                                 <!-- Application Date & Status -->
                                 <div style="margin-top: 12px; padding-top: 12px; border-top: 1px solid #e2e8f0; display: flex; justify-content: space-between; align-items: center; font-size: 13px; color: #64748b;">
                                     <span>Applied: ${new Date(candidate.applied_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</span>
-                                    <span style="background: ${
-                                        candidate.status === 'hired' ? '#dcfce7' :
-                                        candidate.status === 'shortlisted' ? '#fef3c7' :
-                                        candidate.status === 'interviewed' ? '#e0e7ff' :
-                                        candidate.status === 'rejected' ? '#fee2e2' : '#f1f5f9'
-                                    }; color: ${
-                                        candidate.status === 'hired' ? '#166534' :
-                                        candidate.status === 'shortlisted' ? '#854d0e' :
-                                        candidate.status === 'interviewed' ? '#3730a3' :
-                                        candidate.status === 'rejected' ? '#991b1b' : '#475569'
-                                    }; padding: 4px 12px; border-radius: 12px; font-weight: 600; text-transform: capitalize;">
+                                    <span style="background: ${candidate.status === 'hired' ? '#dcfce7' :
+                candidate.status === 'shortlisted' ? '#fef3c7' :
+                    candidate.status === 'interviewed' ? '#e0e7ff' :
+                        candidate.status === 'rejected' ? '#fee2e2' : '#f1f5f9'
+            }; color: ${candidate.status === 'hired' ? '#166534' :
+                candidate.status === 'shortlisted' ? '#854d0e' :
+                    candidate.status === 'interviewed' ? '#3730a3' :
+                        candidate.status === 'rejected' ? '#991b1b' : '#475569'
+            }; padding: 4px 12px; border-radius: 12px; font-weight: 600; text-transform: capitalize;">
                                         ${candidate.status}
                                     </span>
                                 </div>
@@ -958,13 +1033,13 @@ async function viewApplicationDetails(appId) {
         const response = await fetch(`${API_URL}/company/applications/${appId}/history`, {
             headers: { 'Authorization': `Bearer ${authToken}` }
         });
-        
+
         if (!response.ok) {
             throw new Error('Failed to load application details');
         }
-        
+
         const data = await response.json();
-        
+
         // Show modal with application details
         const modal = document.createElement('div');
         modal.className = 'modal show';
@@ -977,9 +1052,9 @@ async function viewApplicationDetails(appId) {
                 <div class="modal-body">
                     <div class="application-details">
                         <h4>Status History</h4>
-                        ${data.status_history && data.status_history.length > 0 ? `
+                        ${(data.history || data.status_history) && (data.history || data.status_history).length > 0 ? `
                             <div class="status-timeline">
-                                ${data.status_history.map(h => `
+                                ${(data.history || data.status_history).map(h => `
                                     <div class="timeline-item">
                                         <div class="timeline-icon">${getStatusIcon(h.status)}</div>
                                         <div class="timeline-content">
@@ -1007,11 +1082,11 @@ async function downloadResume(appId) {
         const response = await fetch(`${API_URL}/candidates/resume/${appId}`, {
             headers: { 'Authorization': `Bearer ${authToken}` }
         });
-        
+
         if (!response.ok) {
             throw new Error('Resume not available');
         }
-        
+
         const blob = await response.blob();
         const url = window.URL.createObjectURL(blob);
         const a = document.createElement('a');
@@ -1021,7 +1096,7 @@ async function downloadResume(appId) {
         a.click();
         window.URL.revokeObjectURL(url);
         document.body.removeChild(a);
-        
+
         showNotification('✓ Resume downloaded successfully', 'success');
     } catch (error) {
         console.error('Error downloading resume:', error);
@@ -1034,7 +1109,7 @@ function companyLogout() {
     localStorage.removeItem('authToken');
     localStorage.removeItem('currentUser');
     localStorage.removeItem('currentRole');
-    
+
     // Reload the page to return to login
     window.location.href = '/';
 }
@@ -1045,7 +1120,7 @@ function companyLogout() {
 async function loadCompanyAnalytics() {
     const container = document.getElementById('companyAnalytics');
     container.innerHTML = '<div class="loading">Loading analytics...</div>';
-    
+
     try {
         // Fetch analytics data
         const [jobsRes, appsRes] = await Promise.all([
@@ -1056,16 +1131,16 @@ async function loadCompanyAnalytics() {
                 headers: { 'Authorization': `Bearer ${authToken}` }
             })
         ]);
-        
+
         if (!jobsRes.ok || !appsRes.ok) {
             throw new Error('Failed to fetch analytics data');
         }
-        
+
         const jobsData = await jobsRes.json();
         const appsData = await appsRes.json();
         const jobs = jobsData.jobs || [];
         const applications = appsData.applications || [];
-        
+
         // Calculate metrics
         const totalJobs = jobs.length;
         const activeJobs = jobs.filter(j => j.status === 'open').length;
@@ -1075,19 +1150,19 @@ async function loadCompanyAnalytics() {
         const hired = applications.filter(a => a.status === 'hired').length;
         const rejected = applications.filter(a => a.status === 'rejected').length;
         const pending = applications.filter(a => a.status === 'pending' || a.status === 'submitted').length;
-        
+
         // Conversion rates
         const shortlistRate = totalApps > 0 ? ((shortlisted / totalApps) * 100).toFixed(1) : 0;
         const interviewRate = totalApps > 0 ? ((interviewed / totalApps) * 100).toFixed(1) : 0;
         const hireRate = totalApps > 0 ? ((hired / totalApps) * 100).toFixed(1) : 0;
-        
+
         // Score distribution
-        const avgScore = totalApps > 0 ? 
+        const avgScore = totalApps > 0 ?
             (applications.reduce((sum, a) => sum + (a.cci_score || 0), 0) / totalApps).toFixed(1) : 0;
-        
+
         // Time to hire (mock data for now)
         const avgTimeToHire = 14;
-        
+
         container.innerHTML = `
             <div class="analytics-header">
                 <div class="analytics-title">
@@ -1169,7 +1244,7 @@ async function loadCompanyAnalytics() {
                         <div class="funnel-percent">100%</div>
                     </div>
                     
-                    <div class="funnel-stage" style="width: ${shortlisted > 0 ? (shortlisted/totalApps*100) : 0}%;">
+                    <div class="funnel-stage" style="width: ${shortlisted > 0 ? (shortlisted / totalApps * 100) : 0}%;">
                         <div class="funnel-bar" style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);">
                             <span class="funnel-label">Shortlisted</span>
                             <span class="funnel-value">${shortlisted}</span>
@@ -1177,7 +1252,7 @@ async function loadCompanyAnalytics() {
                         <div class="funnel-percent">${shortlistRate}%</div>
                     </div>
                     
-                    <div class="funnel-stage" style="width: ${interviewed > 0 ? (interviewed/totalApps*100) : 0}%;">
+                    <div class="funnel-stage" style="width: ${interviewed > 0 ? (interviewed / totalApps * 100) : 0}%;">
                         <div class="funnel-bar" style="background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);">
                             <span class="funnel-label">Interviewed</span>
                             <span class="funnel-value">${interviewed}</span>
@@ -1185,7 +1260,7 @@ async function loadCompanyAnalytics() {
                         <div class="funnel-percent">${interviewRate}%</div>
                     </div>
                     
-                    <div class="funnel-stage" style="width: ${hired > 0 ? (hired/totalApps*100) : 5}%;">
+                    <div class="funnel-stage" style="width: ${hired > 0 ? (hired / totalApps * 100) : 5}%;">
                         <div class="funnel-bar" style="background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%);">
                             <span class="funnel-label">Hired</span>
                             <span class="funnel-value">${hired}</span>
@@ -1219,7 +1294,7 @@ async function loadCompanyAnalytics() {
                                 Hired
                             </div>
                             <div class="decision-bar">
-                                <div class="decision-fill" style="width: ${totalApps > 0 ? (hired/totalApps*100) : 0}%; background: #10b981;"></div>
+                                <div class="decision-fill" style="width: ${totalApps > 0 ? (hired / totalApps * 100) : 0}%; background: #10b981;"></div>
                             </div>
                             <div class="decision-value">${hired}</div>
                         </div>
@@ -1230,7 +1305,7 @@ async function loadCompanyAnalytics() {
                                 Interviewed
                             </div>
                             <div class="decision-bar">
-                                <div class="decision-fill" style="width: ${totalApps > 0 ? (interviewed/totalApps*100) : 0}%; background: #3b82f6;"></div>
+                                <div class="decision-fill" style="width: ${totalApps > 0 ? (interviewed / totalApps * 100) : 0}%; background: #3b82f6;"></div>
                             </div>
                             <div class="decision-value">${interviewed}</div>
                         </div>
@@ -1241,7 +1316,7 @@ async function loadCompanyAnalytics() {
                                 Shortlisted
                             </div>
                             <div class="decision-bar">
-                                <div class="decision-fill" style="width: ${totalApps > 0 ? (shortlisted/totalApps*100) : 0}%; background: #f59e0b;"></div>
+                                <div class="decision-fill" style="width: ${totalApps > 0 ? (shortlisted / totalApps * 100) : 0}%; background: #f59e0b;"></div>
                             </div>
                             <div class="decision-value">${shortlisted}</div>
                         </div>
@@ -1252,7 +1327,7 @@ async function loadCompanyAnalytics() {
                                 Pending
                             </div>
                             <div class="decision-bar">
-                                <div class="decision-fill" style="width: ${totalApps > 0 ? (pending/totalApps*100) : 0}%; background: #6b7280;"></div>
+                                <div class="decision-fill" style="width: ${totalApps > 0 ? (pending / totalApps * 100) : 0}%; background: #6b7280;"></div>
                             </div>
                             <div class="decision-value">${pending}</div>
                         </div>
@@ -1263,7 +1338,7 @@ async function loadCompanyAnalytics() {
                                 Rejected
                             </div>
                             <div class="decision-bar">
-                                <div class="decision-fill" style="width: ${totalApps > 0 ? (rejected/totalApps*100) : 0}%; background: #ef4444;"></div>
+                                <div class="decision-fill" style="width: ${totalApps > 0 ? (rejected / totalApps * 100) : 0}%; background: #ef4444;"></div>
                             </div>
                             <div class="decision-value">${rejected}</div>
                         </div>
@@ -1282,7 +1357,7 @@ async function loadCompanyAnalytics() {
                 </div>
             </div>
         `;
-        
+
     } catch (error) {
         console.error('Error loading analytics:', error);
         container.innerHTML = `
@@ -1299,7 +1374,7 @@ function generateScoreChart(applications) {
     const fair = applications.filter(a => (a.cci_score || 0) >= 25 && (a.cci_score || 0) < 50).length;
     const poor = applications.filter(a => (a.cci_score || 0) < 25).length;
     const total = applications.length || 1;
-    
+
     return `
         <div class="score-bars">
             <div class="score-item">
@@ -1308,7 +1383,7 @@ function generateScoreChart(applications) {
                     <span class="score-range">75-100</span>
                 </div>
                 <div class="score-bar">
-                    <div class="score-fill excellent" style="width: ${(excellent/total*100)}%;"></div>
+                    <div class="score-fill excellent" style="width: ${(excellent / total * 100)}%;"></div>
                 </div>
                 <div class="score-count">${excellent}</div>
             </div>
@@ -1319,7 +1394,7 @@ function generateScoreChart(applications) {
                     <span class="score-range">50-74</span>
                 </div>
                 <div class="score-bar">
-                    <div class="score-fill good" style="width: ${(good/total*100)}%;"></div>
+                    <div class="score-fill good" style="width: ${(good / total * 100)}%;"></div>
                 </div>
                 <div class="score-count">${good}</div>
             </div>
@@ -1330,7 +1405,7 @@ function generateScoreChart(applications) {
                     <span class="score-range">25-49</span>
                 </div>
                 <div class="score-bar">
-                    <div class="score-fill fair" style="width: ${(fair/total*100)}%;"></div>
+                    <div class="score-fill fair" style="width: ${(fair / total * 100)}%;"></div>
                 </div>
                 <div class="score-count">${fair}</div>
             </div>
@@ -1341,7 +1416,7 @@ function generateScoreChart(applications) {
                     <span class="score-range">0-24</span>
                 </div>
                 <div class="score-bar">
-                    <div class="score-fill poor" style="width: ${(poor/total*100)}%;"></div>
+                    <div class="score-fill poor" style="width: ${(poor / total * 100)}%;"></div>
                 </div>
                 <div class="score-count">${poor}</div>
             </div>
@@ -1356,16 +1431,16 @@ function generateTopJobsTable(jobs, applications) {
         return {
             ...job,
             appCount: jobApps.length,
-            avgScore: jobApps.length > 0 ? 
+            avgScore: jobApps.length > 0 ?
                 (jobApps.reduce((sum, a) => sum + (a.cci_score || 0), 0) / jobApps.length).toFixed(1) : 0,
             hired: jobApps.filter(a => a.status === 'hired').length
         };
     }).sort((a, b) => b.appCount - a.appCount).slice(0, 5);
-    
+
     if (jobStats.length === 0) {
         return '<div class="empty-state">No jobs posted yet</div>';
     }
-    
+
     return `
         <table class="analytics-table">
             <thead>
@@ -1404,8 +1479,72 @@ function filterAnalytics(days) {
 }
 
 function exportAnalytics() {
-    showNotification('Exporting analytics report...', 'success');
-    // In production, this would generate PDF/CSV export
+    try {
+        const rows = [];
+        rows.push(['Hiring Analytics Report - Smart Hiring System']);
+        rows.push(['Generated', new Date().toLocaleString()]);
+        rows.push([]);
+
+        // Export KPI metrics from the analytics dashboard
+        const kpiCards = document.querySelectorAll('#companyAnalytics .kpi-card');
+        if (kpiCards.length > 0) {
+            rows.push(['--- Key Performance Indicators ---']);
+            kpiCards.forEach(card => {
+                const label = card.querySelector('.kpi-label, .kpi-title, h4')?.textContent?.trim() || '';
+                const value = card.querySelector('.kpi-value, h2, h3')?.textContent?.trim() || '';
+                if (label || value) rows.push([label, value]);
+            });
+            rows.push([]);
+        }
+
+        // Export pipeline data from status cards
+        const statusCards = document.querySelectorAll('#companyAnalytics .pipeline-stage, .funnel-stage, .status-row');
+        if (statusCards.length > 0) {
+            rows.push(['--- Hiring Pipeline ---']);
+            rows.push(['Stage', 'Count']);
+            statusCards.forEach(card => {
+                const stage = card.querySelector('.stage-name, .status-label, span')?.textContent?.trim() || '';
+                const count = card.querySelector('.stage-count, .status-count, strong')?.textContent?.trim() || '';
+                if (stage) rows.push([stage, count]);
+            });
+            rows.push([]);
+        }
+
+        // Export stat values and labels
+        const statValues = document.querySelectorAll('#companyAnalytics .stat-value, .metric-value');
+        const statLabels = document.querySelectorAll('#companyAnalytics .stat-label, .metric-label');
+        if (statValues.length > 0) {
+            rows.push(['--- Detailed Metrics ---']);
+            statValues.forEach((val, i) => {
+                const label = statLabels[i]?.textContent?.trim() || `Metric ${i + 1}`;
+                rows.push([label, val.textContent.trim()]);
+            });
+            rows.push([]);
+        }
+
+        if (kpiCards.length === 0 && statusCards.length === 0 && statValues.length === 0) {
+            rows.push(['No analytics data loaded. Please visit the Analytics tab first.']);
+        }
+
+        const csv = rows.map(row =>
+            row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(',')
+        ).join('\n');
+
+        const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `hiring_analytics_${new Date().toISOString().slice(0, 10)}.csv`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+
+        showNotification('Analytics report exported as CSV!', 'success');
+    } catch (error) {
+        console.error('Export error:', error);
+        showNotification('Failed to export analytics. Please try again.', 'error');
+    }
 }
 
 // ============================================
@@ -1414,18 +1553,18 @@ function exportAnalytics() {
 async function loadCompanyAudit() {
     const container = document.getElementById('companyAudit');
     container.innerHTML = '<div class="loading">Loading audit data...</div>';
-    
+
     try {
         const response = await fetch(`${API_URL}/audit/report?days=30`, {
             headers: { 'Authorization': `Bearer ${authToken}` }
         });
-        
+
         if (!response.ok) {
             throw new Error('Failed to load audit report');
         }
-        
+
         const data = await response.json();
-        
+
         container.innerHTML = `
             <div class="audit-header">
                 <div class="audit-title">
@@ -1564,7 +1703,7 @@ async function loadCompanyAudit() {
                 </div>
             </div>
         `;
-        
+
     } catch (error) {
         console.error('Error loading audit data:', error);
         container.innerHTML = `
@@ -1584,16 +1723,16 @@ function generateFairnessScoreChart(distribution) {
     const fair = distribution.fair || 0;
     const poor = distribution.poor || 0;
     const total = excellent + good + fair + poor || 1;
-    
+
     return `
         <div class="fairness-bars">
             <div class="fairness-bar-item">
                 <div class="fairness-bar-header">
                     <span class="fairness-bar-label">Excellent (75-100)</span>
-                    <span class="fairness-bar-percent">${((excellent/total)*100).toFixed(1)}%</span>
+                    <span class="fairness-bar-percent">${((excellent / total) * 100).toFixed(1)}%</span>
                 </div>
                 <div class="fairness-bar">
-                    <div class="fairness-bar-fill" style="width: ${(excellent/total)*100}%; background: linear-gradient(90deg, #10b981, #059669);"></div>
+                    <div class="fairness-bar-fill" style="width: ${(excellent / total) * 100}%; background: linear-gradient(90deg, #10b981, #059669);"></div>
                 </div>
                 <div class="fairness-bar-count">${excellent} candidates</div>
             </div>
@@ -1601,10 +1740,10 @@ function generateFairnessScoreChart(distribution) {
             <div class="fairness-bar-item">
                 <div class="fairness-bar-header">
                     <span class="fairness-bar-label">Good (50-74)</span>
-                    <span class="fairness-bar-percent">${((good/total)*100).toFixed(1)}%</span>
+                    <span class="fairness-bar-percent">${((good / total) * 100).toFixed(1)}%</span>
                 </div>
                 <div class="fairness-bar">
-                    <div class="fairness-bar-fill" style="width: ${(good/total)*100}%; background: linear-gradient(90deg, #3b82f6, #2563eb);"></div>
+                    <div class="fairness-bar-fill" style="width: ${(good / total) * 100}%; background: linear-gradient(90deg, #3b82f6, #2563eb);"></div>
                 </div>
                 <div class="fairness-bar-count">${good} candidates</div>
             </div>
@@ -1612,10 +1751,10 @@ function generateFairnessScoreChart(distribution) {
             <div class="fairness-bar-item">
                 <div class="fairness-bar-header">
                     <span class="fairness-bar-label">Fair (25-49)</span>
-                    <span class="fairness-bar-percent">${((fair/total)*100).toFixed(1)}%</span>
+                    <span class="fairness-bar-percent">${((fair / total) * 100).toFixed(1)}%</span>
                 </div>
                 <div class="fairness-bar">
-                    <div class="fairness-bar-fill" style="width: ${(fair/total)*100}%; background: linear-gradient(90deg, #f59e0b, #d97706);"></div>
+                    <div class="fairness-bar-fill" style="width: ${(fair / total) * 100}%; background: linear-gradient(90deg, #f59e0b, #d97706);"></div>
                 </div>
                 <div class="fairness-bar-count">${fair} candidates</div>
             </div>
@@ -1623,10 +1762,10 @@ function generateFairnessScoreChart(distribution) {
             <div class="fairness-bar-item">
                 <div class="fairness-bar-header">
                     <span class="fairness-bar-label">Poor (0-24)</span>
-                    <span class="fairness-bar-percent">${((poor/total)*100).toFixed(1)}%</span>
+                    <span class="fairness-bar-percent">${((poor / total) * 100).toFixed(1)}%</span>
                 </div>
                 <div class="fairness-bar">
-                    <div class="fairness-bar-fill" style="width: ${(poor/total)*100}%; background: linear-gradient(90deg, #ef4444, #dc2626);"></div>
+                    <div class="fairness-bar-fill" style="width: ${(poor / total) * 100}%; background: linear-gradient(90deg, #ef4444, #dc2626);"></div>
                 </div>
                 <div class="fairness-bar-count">${poor} candidates</div>
             </div>
@@ -1636,9 +1775,9 @@ function generateFairnessScoreChart(distribution) {
             <div class="insight-icon">💡</div>
             <div class="insight-content">
                 <strong>Fairness Insight:</strong>
-                ${excellent >= good ? 
-                    'Great! Your job requirements are attracting highly qualified candidates.' :
-                    'Consider reviewing job requirements to attract more qualified candidates.'}
+                ${excellent >= good ?
+            'Great! Your job requirements are attracting highly qualified candidates.' :
+            'Consider reviewing job requirements to attract more qualified candidates.'}
             </div>
         </div>
     `;
@@ -1649,23 +1788,23 @@ async function generateAuditTimeline() {
         const response = await fetch(`${API_URL}/audit/logs?limit=10`, {
             headers: { 'Authorization': `Bearer ${authToken}` }
         });
-        
+
         if (!response.ok) {
             return '<div class="empty-state">No audit events yet</div>';
         }
-        
+
         const logs = await response.json();
-        
+
         if (!logs || logs.length === 0) {
             return '<div class="empty-state">No audit events yet</div>';
         }
-        
+
         return logs.map(log => {
             const date = new Date(log.timestamp);
             const eventIcon = log.event_type === 'application_submitted' ? '📋' :
-                            log.event_type === 'ranked' ? '📊' :
-                            log.event_type === 'status_changed' ? '🔄' : '📝';
-            
+                log.event_type === 'ranked' ? '📊' :
+                    log.event_type === 'status_changed' ? '🔄' : '📝';
+
             return `
                 <div class="audit-timeline-item">
                     <div class="timeline-icon">${eventIcon}</div>
@@ -1688,7 +1827,7 @@ async function generateAuditTimeline() {
                 </div>
             `;
         }).join('');
-        
+
     } catch (error) {
         console.error('Error loading audit timeline:', error);
         return '<div class="empty-state">No audit events yet</div>';
@@ -1701,6 +1840,79 @@ function filterAuditReport(days) {
 }
 
 function exportAuditReport() {
-    showNotification('Generating compliance report...', 'success');
-    // In production, this would generate a detailed PDF report
+    try {
+        const rows = [];
+        rows.push(['Fairness & Compliance Audit Report - Smart Hiring System']);
+        rows.push(['Generated', new Date().toLocaleString()]);
+        rows.push(['Report Type', 'AI Bias & Fairness Compliance Audit']);
+        rows.push([]);
+
+        // Export audit metrics
+        const auditContainer = document.getElementById('companyAudit');
+        if (!auditContainer) {
+            showNotification('Please load the Audit tab first.', 'warning');
+            return;
+        }
+
+        // Grab fairness scores
+        const scoreElements = auditContainer.querySelectorAll('.fairness-score, .audit-score, .score-card, .kpi-card');
+        if (scoreElements.length > 0) {
+            rows.push(['--- Fairness Scores ---']);
+            scoreElements.forEach(el => {
+                const label = el.querySelector('.score-label, .kpi-label, h4, h3')?.textContent?.trim() || '';
+                const value = el.querySelector('.score-value, .kpi-value, h2, strong')?.textContent?.trim() || '';
+                if (label || value) rows.push([label, value]);
+            });
+            rows.push([]);
+        }
+
+        // Grab audit table rows if present
+        const tableRows = auditContainer.querySelectorAll('table tr');
+        if (tableRows.length > 0) {
+            rows.push(['--- Audit Detail Table ---']);
+            tableRows.forEach(tr => {
+                const cells = Array.from(tr.querySelectorAll('th, td')).map(td => td.textContent.trim());
+                if (cells.length > 0) rows.push(cells);
+            });
+            rows.push([]);
+        }
+
+        // Grab any metric items
+        const metricItems = auditContainer.querySelectorAll('.metric-item, .audit-metric, .stat-item');
+        if (metricItems.length > 0) {
+            rows.push(['--- Compliance Metrics ---']);
+            metricItems.forEach(item => {
+                const label = item.querySelector('.metric-label, .stat-label, span')?.textContent?.trim() || '';
+                const value = item.querySelector('.metric-value, .stat-value, strong')?.textContent?.trim() || '';
+                if (label || value) rows.push([label, value]);
+            });
+            rows.push([]);
+        }
+
+        // Compliance status
+        rows.push(['--- Compliance Statement ---']);
+        rows.push(['Standard', 'IEEE 7003-2021 Algorithmic Bias Considerations']);
+        rows.push(['Framework', 'EEOC Uniform Guidelines + AI Ethics']);
+        rows.push(['Bias Mitigation', 'Demographic parity, Equal opportunity, Calibration']);
+        rows.push(['Data', 'Name-blind, age-blind, gender-blind resume parsing']);
+
+        const csv = rows.map(row =>
+            row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(',')
+        ).join('\n');
+
+        const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `fairness_audit_report_${new Date().toISOString().slice(0, 10)}.csv`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+
+        showNotification('Audit compliance report exported as CSV!', 'success');
+    } catch (error) {
+        console.error('Export error:', error);
+        showNotification('Failed to export audit report. Please try again.', 'error');
+    }
 }

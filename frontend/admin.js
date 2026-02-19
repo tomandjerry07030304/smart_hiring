@@ -9,7 +9,7 @@ let adminStats = { totalUsers: 0, activeJobs: 0, applications: 0 };
 async function loadAdminDashboard() {
     console.log('Loading Admin Dashboard...');
     const app = document.getElementById('app');
-    
+
     // First render the dashboard with loading state
     app.innerHTML = `
         <div style="padding: 40px; max-width: 1200px; margin: 0 auto; font-family: system-ui, -apple-system, sans-serif;">
@@ -54,6 +54,11 @@ async function loadAdminDashboard() {
                 <p id="statsStatus" style="margin-top: 20px; color: #9ca3af; font-size: 13px; text-align: center;">
                     Loading statistics...
                 </p>
+                
+                <!-- Analytics Chart -->
+                <div style="margin-top: 30px; height: 300px; position: relative;">
+                    <canvas id="adminStatsChart"></canvas>
+                </div>
             </div>
             
             <div style="background: white; padding: 30px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
@@ -72,7 +77,7 @@ async function loadAdminDashboard() {
             </div>
         </div>
     `;
-    
+
     // Now fetch actual stats
     await loadAdminStats();
 }
@@ -85,7 +90,7 @@ async function loadAdminStats() {
                 'Content-Type': 'application/json'
             }
         });
-        
+
         if (response.ok) {
             const data = await response.json();
             updateStatsDisplay(data);
@@ -102,7 +107,7 @@ async function loadAdminStats() {
 async function loadStatsFallback() {
     // Try to get stats from individual endpoints
     let totalUsers = 0, activeJobs = 0, applications = 0;
-    
+
     try {
         // Get analytics which might include stats
         const analyticsResponse = await fetch(`${API_URL}/dashboard/analytics`, {
@@ -111,7 +116,7 @@ async function loadStatsFallback() {
                 'Content-Type': 'application/json'
             }
         });
-        
+
         if (analyticsResponse.ok) {
             const analytics = await analyticsResponse.json();
             activeJobs = analytics.summary?.total_jobs || 0;
@@ -120,7 +125,7 @@ async function loadStatsFallback() {
     } catch (e) {
         console.log('Analytics endpoint not available');
     }
-    
+
     updateStatsDisplay({
         total_users: totalUsers,
         active_jobs: activeJobs,
@@ -133,17 +138,101 @@ function updateStatsDisplay(data) {
     const activeJobsEl = document.getElementById('statActiveJobs');
     const applicationsEl = document.getElementById('statApplications');
     const statusEl = document.getElementById('statsStatus');
-    
+
     if (totalUsersEl) totalUsersEl.textContent = data.total_users || data.totalUsers || '0';
     if (activeJobsEl) activeJobsEl.textContent = data.active_jobs || data.activeJobs || '0';
     if (applicationsEl) applicationsEl.textContent = data.total_applications || data.applications || '0';
     if (statusEl) statusEl.textContent = 'Last updated: ' + new Date().toLocaleTimeString();
-    
+
     adminStats = {
         totalUsers: data.total_users || 0,
         activeJobs: data.active_jobs || 0,
         applications: data.total_applications || 0
     };
+
+    // Render Chart
+    renderAdminChart(adminStats);
+}
+
+function renderAdminChart(stats) {
+    const ctx = document.getElementById('adminStatsChart');
+    if (!ctx) return;
+
+    // Destroy existing chart if any
+    if (window.adminChartInstance) {
+        window.adminChartInstance.destroy();
+    }
+
+    // Check if dark mode is active to style chart
+    const isDark = document.body.getAttribute('data-theme') === 'dark';
+    const textColor = isDark ? '#e5e7eb' : '#374151';
+    const gridColor = isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)';
+
+    window.adminChartInstance = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: ['Total Users', 'Active Jobs', 'Applications'],
+            datasets: [{
+                label: 'System Metrics',
+                data: [stats.totalUsers, stats.activeJobs, stats.applications],
+                backgroundColor: [
+                    'rgba(79, 70, 229, 0.8)', // Primary
+                    'rgba(16, 185, 129, 0.8)', // Success
+                    'rgba(245, 158, 11, 0.8)'  // Warning
+                ],
+                borderColor: [
+                    'rgba(79, 70, 229, 1)',
+                    'rgba(16, 185, 129, 1)',
+                    'rgba(245, 158, 11, 1)'
+                ],
+                borderWidth: 1,
+                borderRadius: 8
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    display: false
+                },
+                title: {
+                    display: true,
+                    text: 'Platform Overview',
+                    color: textColor,
+                    font: {
+                        family: "'Plus Jakarta Sans', sans-serif",
+                        size: 16,
+                        weight: '600'
+                    }
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    grid: {
+                        color: gridColor
+                    },
+                    ticks: {
+                        color: textColor,
+                        precision: 0
+                    }
+                },
+                x: {
+                    grid: {
+                        display: false
+                    },
+                    ticks: {
+                        color: textColor
+                    }
+                }
+            },
+            animation: {
+                duration: 2000,
+                easing: 'easeOutQuart'
+            }
+        }
+    });
 }
 
 async function refreshAdminStats() {
@@ -167,7 +256,7 @@ function adminLogout() {
     localStorage.removeItem('authToken');
     localStorage.removeItem('currentUser');
     localStorage.removeItem('currentRole');
-    
+
     // Reload the page to return to login
     window.location.href = '/';
 }

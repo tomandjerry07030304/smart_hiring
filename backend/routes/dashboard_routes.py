@@ -11,11 +11,13 @@ except Exception:
 
 from backend.models.database import get_db
 from backend.services.fairness_service import generate_fairness_report, get_fairness_badge
+from backend.security.rbac import require_permission, Permissions
 
 bp = Blueprint('dashboard', __name__)
 
 @bp.route('/analytics', methods=['GET'])
 @jwt_required()
+@require_permission(Permissions.VIEW_ANALYTICS)
 def get_analytics():
     """Get recruitment analytics (recruiter only)"""
     try:
@@ -103,6 +105,7 @@ def get_analytics():
 
 @bp.route('/fairness/<job_id>', methods=['GET'])
 @jwt_required()
+@require_permission(Permissions.VIEW_ANALYTICS)
 def get_fairness_audit(job_id):
     """Get fairness audit report for a job"""
     try:
@@ -146,27 +149,57 @@ def get_fairness_audit(job_id):
                 'job_id': job_id
             }), 200
         
-        # For demo purposes, simulate demographic data
-        # In production, this would come from opt-in candidate data
-        import random
+        # Gap 8: Use real opt-in demographic data from candidates collection
+        # Only candidates who voluntarily self-identified are included in fairness analysis
         applications_data = []
+        skipped_count = 0
         for app in applications:
-            # Simulate protected attributes (for demo only)
+            candidate_id = app.get('candidate_id') or app.get('user_id')
+            if not candidate_id:
+                skipped_count += 1
+                continue
+
+            candidate = candidates_collection.find_one({'user_id': str(candidate_id)})
+            demographics = (candidate or {}).get('demographics', {})
+
+            # Skip candidates without opt-in demographic data
+            if not demographics or not any(
+                k in demographics for k in ('gender', 'age_group', 'ethnicity')
+            ):
+                skipped_count += 1
+                continue
+
             app_data = {
                 'application_id': str(app['_id']),
                 'decision': 1 if app.get('decision') == 'Hire' else 0,
                 'score': app.get('overall_score', 0),
-                'gender': random.choice(['male', 'female', 'other']),
-                'age_group': random.choice(['18-25', '26-35', '36-45', '46+']),
-                'ethnicity': random.choice(['group_a', 'group_b', 'group_c'])
             }
+            # Only include demographic fields the candidate actually provided
+            for attr in ('gender', 'age_group', 'ethnicity'):
+                if attr in demographics and demographics[attr] != 'prefer_not_to_say':
+                    app_data[attr] = demographics[attr]
             applications_data.append(app_data)
+
+        if not applications_data:
+            return jsonify({
+                'message': 'Insufficient opt-in demographic data for fairness analysis',
+                'total_applications': len(applications),
+                'candidates_without_demographics': skipped_count,
+                'job_id': job_id,
+                'hint': 'Candidates can opt-in via PUT /candidates/self-identification'
+            }), 200
+
+        # Determine which protected attributes actually have data
+        protected_attributes = [
+            attr for attr in ('gender', 'age_group', 'ethnicity')
+            if any(attr in ad for ad in applications_data)
+        ]
         
         # Generate fairness report
         report = generate_fairness_report(
             job_id=job_id,
             applications_data=applications_data,
-            protected_attributes=['gender', 'age_group', 'ethnicity']
+            protected_attributes=protected_attributes
         )
         
         # Calculate overall fairness score
@@ -185,6 +218,7 @@ def get_fairness_audit(job_id):
 
 @bp.route('/transparency/<application_id>', methods=['GET'])
 @jwt_required()
+@require_permission(Permissions.VIEW_APPLICATIONS)
 def get_transparency_report(application_id):
     """Get transparency report for an application"""
     try:

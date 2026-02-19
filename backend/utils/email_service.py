@@ -34,6 +34,14 @@ from email.mime.multipart import MIMEMultipart
 from datetime import datetime, timedelta
 from typing import Optional, List, Dict, Tuple
 
+# Geo-location for login security alerts
+try:
+    import geocoder
+    GEOCODER_AVAILABLE = True
+except ImportError:
+    GEOCODER_AVAILABLE = False
+    logging.warning("⚠️ geocoder not installed - IP-based location disabled. Install with: pip install geocoder")
+
 # Configure logging
 logger = logging.getLogger(__name__)
 
@@ -74,12 +82,14 @@ class EmailService:
     """Professional email service with template support - P0 PRODUCTION READY"""
     
     def __init__(self):
-        self.smtp_server = os.getenv('SMTP_SERVER', 'smtp.gmail.com')
+        # Brevo SMTP is recommended for free-tier transactional email
+        self.smtp_server = os.getenv('SMTP_SERVER', 'smtp-relay.brevo.com')
         self.smtp_port = int(os.getenv('SMTP_PORT', '587'))
         self.smtp_username = os.getenv('SMTP_USERNAME', '')
         self.smtp_password = os.getenv('SMTP_PASSWORD', '')
         self.from_email = os.getenv('FROM_EMAIL', 'noreply@smarthiring.com')
         self.from_name = os.getenv('FROM_NAME', 'Smart Hiring System')
+        self.base_url = os.getenv('FRONTEND_URL', 'http://localhost:5000')
         # P0 FIX: Default to TRUE - emails ENABLED by default in all non-test environments
         env = os.getenv('FLASK_ENV', 'production')
         self.enabled = os.getenv('EMAIL_ENABLED', 'true').lower() == 'true' and env != 'testing'
@@ -88,6 +98,14 @@ class EmailService:
     
     def _validate_configuration(self):
         """Validate email configuration on startup and log status"""
+        # Check if email is explicitly disabled - if so, skip warning
+        smtp_enabled = os.getenv('SMTP_ENABLED', 'true').lower() == 'true'
+        if not smtp_enabled:
+            print("ℹ️  Email service disabled via SMTP_ENABLED=false")
+            self.enabled = False
+            self.config_valid = False
+            return
+            
         issues = []
         
         if not self.smtp_username:
@@ -391,16 +409,19 @@ class EmailService:
     
     def send_login_confirmation(self, to_email: str, user_name: str, login_time: str = None,
                                  ip_address: str = None, device_info: str = None) -> bool:
-        """Send login confirmation/security alert email to user"""
+        """Send login confirmation/security alert email with geo-location"""
         from datetime import datetime
         
         if not login_time:
             login_time = datetime.now().strftime('%B %d, %Y at %I:%M %p UTC')
         
+        # Geo-location lookup from IP
+        location = self._get_location_from_ip(ip_address)
+        
         subject = "🔐 New Login to Your Smart Hiring Account"
         
         html_content = self._get_login_confirmation_template(
-            user_name, login_time, ip_address, device_info
+            user_name, login_time, ip_address, device_info, location
         )
         text_content = f"""
         Hi {user_name},
@@ -410,6 +431,7 @@ class EmailService:
         Login Details:
         - Time: {login_time}
         - IP Address: {ip_address or 'Unknown'}
+        - Location: {location or 'Unknown'}
         - Device: {device_info or 'Unknown'}
         
         If this was you, no action is needed.
@@ -420,6 +442,62 @@ class EmailService:
         
         Stay secure!
         Smart Hiring Team
+        """
+        
+        return self.send_email(to_email, subject, html_content, text_content)
+    
+    @staticmethod
+    def _get_location_from_ip(ip_address: str = None) -> str:
+        """Get city/country from IP address using geocoder"""
+        if not GEOCODER_AVAILABLE:
+            return "Location unavailable (geocoder not installed)"
+        
+        try:
+            # Skip for localhost/private IPs
+            if ip_address in (None, '', '127.0.0.1', '::1', 'localhost'):
+                return "Local Network"
+            
+            # Check for private IPs
+            if ip_address and (ip_address.startswith('10.') or 
+                              ip_address.startswith('192.168.') or 
+                              ip_address.startswith('172.')):
+                return "Private Network"
+            
+            g = geocoder.ip(ip_address if ip_address else 'me')
+            if g.ok:
+                parts = []
+                if g.city:
+                    parts.append(g.city)
+                if g.state:
+                    parts.append(g.state)
+                if g.country:
+                    parts.append(g.country)
+                return ', '.join(parts) if parts else "Unknown Location"
+            return "Unknown Location"
+        except Exception as e:
+            logger.warning(f"Geo-location lookup failed: {e}")
+            return "Unknown Location"
+    
+    def send_fraud_report_confirmation(self, to_email: str, user_name: str, 
+                                        report_type: str, report_details: str = "") -> bool:
+        """Send confirmation that a fraud/suspicious activity report was received"""
+        subject = "⚠️ Suspicious Activity Report Received - Smart Hiring"
+        
+        html_content = self._get_fraud_report_template(user_name, report_type, report_details)
+        text_content = f"""
+        Hi {user_name},
+        
+        We have received your report about suspicious activity on your account.
+        
+        Report Type: {report_type}
+        {f'Details: {report_details}' if report_details else ''}
+        
+        Our security team will investigate this within 24 hours.
+        Your account has been temporarily secured. If you need to log in, 
+        please reset your password first.
+        
+        Stay safe,
+        Smart Hiring Security Team
         """
         
         return self.send_email(to_email, subject, html_content, text_content)
@@ -509,7 +587,7 @@ class EmailService:
                 <div class="footer">
                     <p>© {datetime.now().year} Smart Hiring System. All rights reserved.</p>
                     <p>You received this email because you have an account with us.</p>
-                    <p><a href="https://my-project-smart-hiring.onrender.com" style="color: #4F46E5;">Visit Dashboard</a></p>
+                    <p><a href="{self.base_url}" style="color: #4F46E5;">Visit Dashboard</a></p>
                 </div>
             </div>
         </body>
@@ -528,7 +606,7 @@ class EmailService:
                 {'<li>Full system administration</li><li>User management</li><li>System analytics</li>' if role == 'admin' else ''}
             </ul>
             <p>
-                <a href="https://my-project-smart-hiring.onrender.com" class="button">
+                <a href="{self.base_url}" class="button">
                     Get Started →
                 </a>
             </p>
@@ -538,23 +616,64 @@ class EmailService:
         return self._get_base_template(content)
     
     def _get_application_confirmation_template(self, candidate_name: str, job_title: str, company_name: str) -> str:
-        """Application confirmation template"""
+        """Application confirmation template with fraud detection warning"""
         content = f"""
             <h2>Application Received! ✅</h2>
             <p>Hi <strong>{candidate_name}</strong>,</p>
             <p>Your application for <strong>{job_title}</strong> at <strong>{company_name}</strong> has been successfully submitted.</p>
+            
+            <div style="background: #f0fdf4; padding: 24px; border-radius: 12px; margin: 24px 0; border-left: 4px solid #22c55e;">
+                <h3 style="margin: 0 0 16px 0; color: #166534;">📋 Application Details</h3>
+                <table style="width: 100%; border-collapse: collapse;">
+                    <tr>
+                        <td style="padding: 8px 0; color: #718096; width: 120px;">Position:</td>
+                        <td style="padding: 8px 0; font-weight: 600;">{job_title}</td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 8px 0; color: #718096;">Company:</td>
+                        <td style="padding: 8px 0;">{company_name}</td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 8px 0; color: #718096;">Applied On:</td>
+                        <td style="padding: 8px 0;">{datetime.now().strftime('%B %d, %Y at %I:%M %p')}</td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 8px 0; color: #718096;">Status:</td>
+                        <td style="padding: 8px 0;"><span style="background: #dbeafe; color: #1e40af; padding: 4px 12px; border-radius: 4px; font-weight: 600;">Under Review</span></td>
+                    </tr>
+                </table>
+            </div>
+            
             <p><strong>What happens next?</strong></p>
             <ol>
-                <li>Our team will review your application</li>
+                <li>Our AI system will analyze your resume (bias-free)</li>
                 <li>We'll match your skills with job requirements</li>
+                <li>Fairness audit ensures equal evaluation</li>
                 <li>You'll be notified about any status updates</li>
             </ol>
             <p>You can track your application status anytime in your dashboard.</p>
             <p>
-                <a href="https://my-project-smart-hiring.onrender.com" class="button">
+                <a href="{self.base_url}" class="button">
                     View Application Status →
                 </a>
             </p>
+            
+            <div style="background: #fef2f2; padding: 16px; border-radius: 8px; margin: 24px 0; border-left: 4px solid #dc2626;">
+                <p style="margin: 0 0 8px 0; color: #991b1b;">
+                    <strong>⚠️ Didn't apply for this job?</strong>
+                </p>
+                <p style="margin: 0; color: #991b1b; font-size: 14px;">
+                    If you did not submit this application, someone may be using your account without permission. 
+                    Your account will be temporarily locked for security. Click below to report this immediately:
+                </p>
+                <p style="text-align: center; margin: 12px 0 0 0;">
+                    <a href="{self.base_url}/api/auth/report-fraud" 
+                       style="display: inline-block; background: #dc2626; color: white; padding: 10px 24px; text-decoration: none; border-radius: 8px; font-weight: 600;">
+                        🚨 Report Unauthorized Activity
+                    </a>
+                </p>
+            </div>
+            
             <p>Good luck! 🍀</p>
             <p>Best regards,<br><strong>Smart Hiring Team</strong></p>
         """
@@ -581,7 +700,7 @@ class EmailService:
             </div>
             {f'<p><strong>Note from recruiter:</strong><br>{note}</p>' if note else ''}
             <p>
-                <a href="https://my-project-smart-hiring.onrender.com" class="button">
+                <a href="{self.base_url}" class="button">
                     View Details →
                 </a>
             </p>
@@ -626,7 +745,7 @@ class EmailService:
                 <h2 style="margin: 8px 0; color: {score_color};">{int(match_score)}%</h2>
             </div>
             <p>
-                <a href="https://my-project-smart-hiring.onrender.com" class="button">
+                <a href="{self.base_url}" class="button">
                     Review Application →
                 </a>
             </p>
@@ -677,7 +796,7 @@ class EmailService:
             </ul>
             
             <p>
-                <a href="https://my-project-smart-hiring.onrender.com" class="button">
+                <a href="{self.base_url}" class="button">
                     View Job Posting →
                 </a>
             </p>
@@ -686,8 +805,9 @@ class EmailService:
         return self._get_base_template(content)
     
     def _get_login_confirmation_template(self, user_name: str, login_time: str,
-                                          ip_address: str = None, device_info: str = None) -> str:
-        """Login confirmation/security alert template"""
+                                          ip_address: str = None, device_info: str = None,
+                                          location: str = None) -> str:
+        """Login confirmation/security alert template with GPS location"""
         content = f"""
             <h2>New Login Detected 🔐</h2>
             <p>Hi <strong>{user_name}</strong>,</p>
@@ -697,15 +817,19 @@ class EmailService:
                 <h3 style="margin: 0 0 16px 0; color: #166534;">Login Details</h3>
                 <table style="width: 100%; border-collapse: collapse;">
                     <tr>
-                        <td style="padding: 8px 0; color: #718096; width: 120px;">Time:</td>
+                        <td style="padding: 8px 0; color: #718096; width: 120px;">🕒 Time:</td>
                         <td style="padding: 8px 0; font-weight: 600;">{login_time}</td>
                     </tr>
                     <tr>
-                        <td style="padding: 8px 0; color: #718096;">IP Address:</td>
+                        <td style="padding: 8px 0; color: #718096;">📍 Location:</td>
+                        <td style="padding: 8px 0; font-weight: 600;">{location or 'Not available'}</td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 8px 0; color: #718096;">🌐 IP Address:</td>
                         <td style="padding: 8px 0;">{ip_address or 'Not available'}</td>
                     </tr>
                     <tr>
-                        <td style="padding: 8px 0; color: #718096;">Device:</td>
+                        <td style="padding: 8px 0; color: #718096;">💻 Device:</td>
                         <td style="padding: 8px 0;">{device_info or 'Not available'}</td>
                     </tr>
                 </table>
@@ -722,16 +846,63 @@ class EmailService:
                 <ol style="color: #991b1b; margin: 8px 0;">
                     <li>Change your password right away</li>
                     <li>Review your recent account activity</li>
-                    <li>Contact our support team</li>
+                    <li>Report suspicious activity using the button below</li>
                 </ol>
             </div>
             
+            <div style="text-align: center; margin: 24px 0;">
+                <a href="{self.base_url}/reset-password.html" class="button" style="background: #dc2626; margin-right: 12px;">
+                    Reset Password →
+                </a>
+                <a href="{self.base_url}/api/auth/report-fraud" class="button" style="background: #f59e0b; color: #78350f;">
+                    Report Suspicious Activity ⚠️
+                </a>
+            </div>
+            
+            <p>Stay secure!<br><strong>Smart Hiring Security Team</strong></p>
+        """
+        return self._get_base_template(content)
+    
+    def _get_fraud_report_template(self, user_name: str, report_type: str, report_details: str = "") -> str:
+        """Fraud/suspicious activity report confirmation template"""
+        content = f"""
+            <h2>Suspicious Activity Report Received ⚠️</h2>
+            <p>Hi <strong>{user_name}</strong>,</p>
+            <p>We have received your report and our security team is investigating.</p>
+            
+            <div style="background: #fef3c7; padding: 24px; border-radius: 12px; margin: 24px 0; border-left: 4px solid #f59e0b;">
+                <h3 style="margin: 0 0 16px 0; color: #78350f;">Report Details</h3>
+                <table style="width: 100%; border-collapse: collapse;">
+                    <tr>
+                        <td style="padding: 8px 0; color: #92400e; width: 120px;">Report Type:</td>
+                        <td style="padding: 8px 0; font-weight: 600;">{report_type}</td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 8px 0; color: #92400e;">Reported At:</td>
+                        <td style="padding: 8px 0;">{datetime.now().strftime('%B %d, %Y at %I:%M %p UTC')}</td>
+                    </tr>
+                    {f'<tr><td style="padding: 8px 0; color: #92400e;">Details:</td><td style="padding: 8px 0;">{report_details}</td></tr>' if report_details else ''}
+                </table>
+            </div>
+            
+            <div style="background: #fef2f2; padding: 16px; border-radius: 8px; margin: 16px 0;">
+                <p style="margin: 0; color: #991b1b;">
+                    <strong>🔒 For your security, we recommend:</strong>
+                </p>
+                <ol style="color: #991b1b; margin: 8px 0;">
+                    <li>Reset your password immediately</li>
+                    <li>Enable two-factor authentication if available</li>
+                    <li>Review your recent applications and profile changes</li>
+                </ol>
+            </div>
+            
+            <p>Our security team will investigate within <strong>24 hours</strong> and contact you with an update.</p>
             <p>
-                <a href="https://my-project-smart-hiring.onrender.com" class="button">
-                    Go to Dashboard →
+                <a href="{self.base_url}/reset-password.html" class="button">
+                    Reset Password Now →
                 </a>
             </p>
-            <p>Stay secure!<br><strong>Smart Hiring Team</strong></p>
+            <p>Stay safe,<br><strong>Smart Hiring Security Team</strong></p>
         """
         return self._get_base_template(content)
 

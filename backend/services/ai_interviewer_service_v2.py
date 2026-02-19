@@ -1,6 +1,8 @@
 """
 Enhanced AI Interviewer Service - Dynamic Role-Specific Questioning
-Generates personalized interview questions based on job roles, skills, and experience levels
+Generates personalized interview questions based on job roles, skills, and experience levels.
+
+v2.1 — Expanded question banks (35+ per role) to support 25-30 questions per interview.
 """
 
 import random
@@ -8,386 +10,25 @@ from datetime import datetime
 from typing import List, Dict, Optional, Tuple
 import re
 
+from backend.services.question_banks import (
+    ROLE_QUESTION_BANKS,
+    UNIVERSAL_BEHAVIORAL_QUESTIONS,
+)
+
 
 # ============================================================================
 # COMPREHENSIVE ROLE-SPECIFIC QUESTION BANKS
 # ============================================================================
+# NOTE: Questions are imported from backend/services/question_banks.py
+# ROLE_QUESTION_BANKS  — 35+ technical per role across 7-8 categories
+# UNIVERSAL_BEHAVIORAL_QUESTIONS — 15 total
 
-ROLE_QUESTION_BANKS = {
-    'software_developer': {
-        'fundamentals': [
-            {
-                'id': 'SD_F1',
-                'question': 'Explain the SOLID principles and provide a real-world example of how you\'ve applied at least two of them.',
-                'difficulty': 'medium',
-                'expected_keywords': ['single responsibility', 'open-closed', 'liskov', 'interface segregation', 'dependency inversion', 'maintainability', 'extensible'],
-                'time_limit_minutes': 10,
-                'follow_up': 'How do you balance adhering to SOLID principles with meeting tight deadlines?'
-            },
-            {
-                'id': 'SD_F2',
-                'question': 'What is your approach to error handling and logging in production applications? Describe a specific incident you debugged.',
-                'difficulty': 'hard',
-                'expected_keywords': ['try-catch', 'exception', 'logging levels', 'monitoring', 'stack trace', 'debugging', 'root cause'],
-                'time_limit_minutes': 12,
-                'follow_up': 'How do you prevent similar issues from recurring?'
-            },
-            {
-                'id': 'SD_F3',
-                'question': 'Describe your experience with version control. How do you handle merge conflicts and what branching strategy do you prefer?',
-                'difficulty': 'easy',
-                'expected_keywords': ['git', 'branch', 'merge', 'conflict', 'pull request', 'code review', 'gitflow'],
-                'time_limit_minutes': 7,
-                'follow_up': 'Tell me about a time when a merge went wrong and how you resolved it.'
-            }
-        ],
-        'architecture': [
-            {
-                'id': 'SD_A1',
-                'question': 'Design a URL shortener service like bit.ly. Discuss database schema, API endpoints, scaling strategy, and how you\'d handle 1 million requests per day.',
-                'difficulty': 'hard',
-                'expected_keywords': ['hash', 'database', 'redis', 'caching', 'load balancer', 'distributed', 'sharding', 'api design'],
-                'time_limit_minutes': 15,
-                'follow_up': 'How would you handle analytics and track click statistics?'
-            },
-            {
-                'id': 'SD_A2',
-                'question': 'Explain the difference between monolithic and microservices architecture. When would you choose one over the other?',
-                'difficulty': 'medium',
-                'expected_keywords': ['monolithic', 'microservices', 'scalability', 'deployment', 'communication', 'trade-offs', 'complexity'],
-                'time_limit_minutes': 10,
-                'follow_up': 'How do you handle distributed transactions in microservices?'
-            }
-        ],
-        'problem_solving': [
-            {
-                'id': 'SD_PS1',
-                'question': 'Write a function to find the longest palindromic substring in a given string. Explain your approach and analyze time/space complexity.',
-                'difficulty': 'hard',
-                'expected_keywords': ['palindrome', 'substring', 'algorithm', 'complexity', 'optimization', 'dynamic programming'],
-                'time_limit_minutes': 15,
-                'follow_up': 'Can you optimize this for very large strings?'
-            },
-            {
-                'id': 'SD_PS2',
-                'question': 'How would you detect a cycle in a linked list? Implement the solution and explain the algorithm.',
-                'difficulty': 'medium',
-                'expected_keywords': ['cycle', 'linked list', 'two pointers', 'floyd', 'tortoise and hare', 'time complexity'],
-                'time_limit_minutes': 10,
-                'follow_up': 'How would you find the start point of the cycle?'
-            }
-        ]
-    },
-    
-    'data_analyst': {
-        'fundamentals': [
-            {
-                'id': 'DA_F1',
-                'question': 'Explain the difference between correlation and causation. Provide an example of when understanding this distinction prevented a bad business decision.',
-                'difficulty': 'medium',
-                'expected_keywords': ['correlation', 'causation', 'confounding', 'spurious', 'relationship', 'statistical', 'experiment'],
-                'time_limit_minutes': 8,
-                'follow_up': 'How would you design an experiment to establish causation?'
-            },
-            {
-                'id': 'DA_F2',
-                'question': 'Walk me through your process for cleaning and preparing messy data. What tools do you use and how do you handle missing values?',
-                'difficulty': 'easy',
-                'expected_keywords': ['cleaning', 'preprocessing', 'missing values', 'outliers', 'pandas', 'validation', 'imputation'],
-                'time_limit_minutes': 7,
-                'follow_up': 'How do you decide between removing or imputing missing data?'
-            },
-            {
-                'id': 'DA_F3',
-                'question': 'Describe a complex SQL query you\'ve written. What was the business problem and how did you optimize it?',
-                'difficulty': 'hard',
-                'expected_keywords': ['sql', 'join', 'subquery', 'cte', 'window function', 'optimization', 'index', 'performance'],
-                'time_limit_minutes': 12,
-                'follow_up': 'How did you validate the results were correct?'
-            }
-        ],
-        'visualization': [
-            {
-                'id': 'DA_V1',
-                'question': 'You need to present quarterly sales data to executives. What visualizations would you choose and why? How do you ensure your visualizations don\'t mislead?',
-                'difficulty': 'medium',
-                'expected_keywords': ['dashboard', 'chart', 'visualization', 'insight', 'clarity', 'audience', 'storytelling', 'misleading'],
-                'time_limit_minutes': 10,
-                'follow_up': 'Give an example of a misleading visualization you\'ve seen.'
-            },
-            {
-                'id': 'DA_V2',
-                'question': 'Explain when you would use a box plot vs. a histogram vs. a scatter plot. Provide specific business use cases.',
-                'difficulty': 'easy',
-                'expected_keywords': ['box plot', 'histogram', 'scatter plot', 'distribution', 'outliers', 'correlation', 'use case'],
-                'time_limit_minutes': 6,
-                'follow_up': 'How do you choose the right bin size for histograms?'
-            }
-        ],
-        'statistics': [
-            {
-                'id': 'DA_S1',
-                'question': 'Explain A/B testing. If you ran a test with 10,000 users and saw a 5% improvement with p-value 0.06, what would you recommend?',
-                'difficulty': 'hard',
-                'expected_keywords': ['a/b test', 'hypothesis', 'p-value', 'significance', 'sample size', 'statistical power', 'confidence'],
-                'time_limit_minutes': 12,
-                'follow_up': 'How would you detect and handle a novelty effect?'
-            },
-            {
-                'id': 'DA_S2',
-                'question': 'A company claims their new feature increased user retention by 20%. How would you verify this claim? What questions would you ask?',
-                'difficulty': 'medium',
-                'expected_keywords': ['retention', 'metric', 'cohort', 'baseline', 'statistical test', 'bias', 'confounding', 'validation'],
-                'time_limit_minutes': 10,
-                'follow_up': 'What are potential biases in measuring retention?'
-            }
-        ],
-        'business_acumen': [
-            {
-                'id': 'DA_BA1',
-                'question': 'Describe a time when your analysis led to a business decision that saved money or increased revenue. What was your approach?',
-                'difficulty': 'medium',
-                'expected_keywords': ['analysis', 'insight', 'recommendation', 'impact', 'stakeholder', 'data-driven', 'business value'],
-                'time_limit_minutes': 10,
-                'follow_up': 'How did you measure the impact of your recommendation?'
-            },
-            {
-                'id': 'DA_BA2',
-                'question': 'If you notice a sudden 30% drop in a key metric, what steps would you take to investigate?',
-                'difficulty': 'hard',
-                'expected_keywords': ['investigation', 'root cause', 'data quality', 'segmentation', 'timeline', 'hypothesis', 'debugging'],
-                'time_limit_minutes': 12,
-                'follow_up': 'How do you prioritize which hypotheses to test first?'
-            }
-        ]
-    },
-    
-    'data_scientist': {
-        'ml_fundamentals': [
-            {
-                'id': 'DS_ML1',
-                'question': 'Explain bias-variance tradeoff. How do you diagnose and fix high bias vs. high variance in your models?',
-                'difficulty': 'hard',
-                'expected_keywords': ['bias', 'variance', 'overfitting', 'underfitting', 'regularization', 'cross-validation', 'learning curve'],
-                'time_limit_minutes': 12,
-                'follow_up': 'Give a real example from a project where you balanced this tradeoff.'
-            },
-            {
-                'id': 'DS_ML2',
-                'question': 'Walk me through building a machine learning model from scratch - data collection to deployment. What are the most common pitfalls?',
-                'difficulty': 'hard',
-                'expected_keywords': ['pipeline', 'feature engineering', 'training', 'validation', 'deployment', 'monitoring', 'data drift'],
-                'time_limit_minutes': 15,
-                'follow_up': 'How do you handle model decay in production?'
-            },
-            {
-                'id': 'DS_ML3',
-                'question': 'Compare Random Forest and Gradient Boosting. When would you choose one over the other?',
-                'difficulty': 'medium',
-                'expected_keywords': ['random forest', 'gradient boosting', 'ensemble', 'bagging', 'boosting', 'overfitting', 'interpretability'],
-                'time_limit_minutes': 10,
-                'follow_up': 'How do you tune hyperparameters for these models?'
-            }
-        ],
-        'deep_learning': [
-            {
-                'id': 'DS_DL1',
-                'question': 'Explain how backpropagation works. How would you debug a neural network that isn\'t learning?',
-                'difficulty': 'hard',
-                'expected_keywords': ['backpropagation', 'gradient', 'chain rule', 'loss function', 'vanishing gradient', 'learning rate', 'debugging'],
-                'time_limit_minutes': 15,
-                'follow_up': 'What techniques prevent vanishing/exploding gradients?'
-            },
-            {
-                'id': 'DS_DL2',
-                'question': 'Describe the architecture and use cases for: CNN, RNN, and Transformer models. Which would you use for sentiment analysis?',
-                'difficulty': 'hard',
-                'expected_keywords': ['cnn', 'rnn', 'transformer', 'architecture', 'sentiment analysis', 'nlp', 'attention mechanism'],
-                'time_limit_minutes': 12,
-                'follow_up': 'How do attention mechanisms improve performance?'
-            }
-        ],
-        'feature_engineering': [
-            {
-                'id': 'DS_FE1',
-                'question': 'You have a dataset with categorical variables that have high cardinality (thousands of unique values). How would you handle this?',
-                'difficulty': 'medium',
-                'expected_keywords': ['categorical', 'encoding', 'target encoding', 'embedding', 'dimensionality', 'curse of dimensionality'],
-                'time_limit_minutes': 10,
-                'follow_up': 'What are the risks of target encoding?'
-            },
-            {
-                'id': 'DS_FE2',
-                'question': 'Describe your approach to feature selection. What techniques do you use and how do you avoid data leakage?',
-                'difficulty': 'hard',
-                'expected_keywords': ['feature selection', 'importance', 'correlation', 'mutual information', 'data leakage', 'pipeline'],
-                'time_limit_minutes': 12,
-                'follow_up': 'Give an example of subtle data leakage you\'ve encountered.'
-            }
-        ]
-    },
-    
-    'devops_engineer': {
-        'fundamentals': [
-            {
-                'id': 'DO_F1',
-                'question': 'Explain the CI/CD pipeline you\'ve implemented. What tools did you use and how did you ensure deployment safety?',
-                'difficulty': 'hard',
-                'expected_keywords': ['ci/cd', 'pipeline', 'jenkins', 'github actions', 'testing', 'deployment', 'rollback', 'blue-green'],
-                'time_limit_minutes': 12,
-                'follow_up': 'How do you handle failed deployments?'
-            },
-            {
-                'id': 'DO_F2',
-                'question': 'Describe your experience with containerization. How does Docker differ from virtual machines? When would you use each?',
-                'difficulty': 'medium',
-                'expected_keywords': ['docker', 'container', 'virtual machine', 'isolation', 'orchestration', 'kubernetes', 'lightweight'],
-                'time_limit_minutes': 10,
-                'follow_up': 'How do you optimize Docker image sizes?'
-            },
-            {
-                'id': 'DO_F3',
-                'question': 'Walk me through how you\'d troubleshoot a production server that\'s experiencing high latency.',
-                'difficulty': 'hard',
-                'expected_keywords': ['troubleshooting', 'latency', 'monitoring', 'logs', 'metrics', 'profiling', 'bottleneck', 'debugging'],
-                'time_limit_minutes': 15,
-                'follow_up': 'What monitoring tools do you use and why?'
-            }
-        ],
-        'infrastructure': [
-            {
-                'id': 'DO_I1',
-                'question': 'Explain Infrastructure as Code. Compare Terraform vs. CloudFormation. Which do you prefer and why?',
-                'difficulty': 'medium',
-                'expected_keywords': ['iac', 'terraform', 'cloudformation', 'declarative', 'state management', 'version control', 'automation'],
-                'time_limit_minutes': 10,
-                'follow_up': 'How do you manage secrets in IaC?'
-            },
-            {
-                'id': 'DO_I2',
-                'question': 'Design a highly available and scalable architecture for an e-commerce application. Consider database, caching, and disaster recovery.',
-                'difficulty': 'hard',
-                'expected_keywords': ['high availability', 'scalability', 'load balancer', 'database replication', 'caching', 'disaster recovery', 'failover'],
-                'time_limit_minutes': 15,
-                'follow_up': 'What\'s your RTO and RPO strategy?'
-            }
-        ]
-    },
-    
-    'product_manager': {
-        'strategy': [
-            {
-                'id': 'PM_S1',
-                'question': 'Describe how you prioritize features when you have limited engineering resources and multiple stakeholder requests.',
-                'difficulty': 'hard',
-                'expected_keywords': ['prioritization', 'stakeholder', 'impact', 'effort', 'rice', 'moscow', 'roadmap', 'trade-offs'],
-                'time_limit_minutes': 12,
-                'follow_up': 'How do you say no to important stakeholders?'
-            },
-            {
-                'id': 'PM_S2',
-                'question': 'Tell me about a product you shipped that didn\'t perform as expected. What did you learn and how did you pivot?',
-                'difficulty': 'medium',
-                'expected_keywords': ['failure', 'learning', 'metrics', 'pivot', 'user feedback', 'iteration', 'retrospective'],
-                'time_limit_minutes': 10,
-                'follow_up': 'How did you communicate this to leadership?'
-            }
-        ],
-        'metrics': [
-            {
-                'id': 'PM_M1',
-                'question': 'How would you measure the success of [company\'s product]? What are the key metrics and why?',
-                'difficulty': 'hard',
-                'expected_keywords': ['metrics', 'kpi', 'success criteria', 'user engagement', 'retention', 'conversion', 'north star metric'],
-                'time_limit_minutes': 12,
-                'follow_up': 'How do you avoid vanity metrics?'
-            }
-        ]
-    },
-    
-    'ui_ux_designer': {
-        'design_process': [
-            {
-                'id': 'UX_DP1',
-                'question': 'Walk me through your design process from user research to final implementation. How do you validate your designs?',
-                'difficulty': 'medium',
-                'expected_keywords': ['user research', 'wireframe', 'prototype', 'usability testing', 'iteration', 'feedback', 'validation'],
-                'time_limit_minutes': 12,
-                'follow_up': 'How do you balance user needs with business goals?'
-            },
-            {
-                'id': 'UX_DP2',
-                'question': 'Describe a time when user testing revealed your initial design was wrong. How did you respond?',
-                'difficulty': 'hard',
-                'expected_keywords': ['user testing', 'feedback', 'iteration', 'redesign', 'learning', 'humility', 'data-driven'],
-                'time_limit_minutes': 10,
-                'follow_up': 'How do you prevent confirmation bias in testing?'
-            }
-        ],
-        'principles': [
-            {
-                'id': 'UX_P1',
-                'question': 'Explain key accessibility principles. How do you ensure your designs are accessible to users with disabilities?',
-                'difficulty': 'medium',
-                'expected_keywords': ['accessibility', 'wcag', 'screen reader', 'contrast', 'keyboard navigation', 'inclusive design'],
-                'time_limit_minutes': 10,
-                'follow_up': 'Give an example of an accessibility issue you fixed.'
-            }
-        ]
-    }
-}
-
-# Behavioral questions applicable to all roles
-UNIVERSAL_BEHAVIORAL_QUESTIONS = [
-    {
-        'id': 'BEH_1',
-        'question': 'Tell me about a time when you had to learn a new technology or skill quickly to complete a project. How did you approach it?',
-        'difficulty': 'medium',
-        'category': 'learning_agility',
-        'expected_keywords': ['learning', 'self-taught', 'documentation', 'practice', 'deadline', 'resourceful'],
-        'star_required': True
-    },
-    {
-        'id': 'BEH_2',
-        'question': 'Describe a situation where you disagreed with a team member or manager. How did you handle it and what was the outcome?',
-        'difficulty': 'hard',
-        'category': 'conflict_resolution',
-        'expected_keywords': ['disagreement', 'communication', 'compromise', 'resolution', 'respect', 'outcome'],
-        'star_required': True
-    },
-    {
-        'id': 'BEH_3',
-        'question': 'Give me an example of a project that didn\'t go as planned. What went wrong and what did you do about it?',
-        'difficulty': 'medium',
-        'category': 'problem_solving',
-        'expected_keywords': ['challenge', 'problem', 'solution', 'adaptation', 'learning', 'outcome'],
-        'star_required': True
-    },
-    {
-        'id': 'BEH_4',
-        'question': 'Tell me about your greatest professional achievement. What made it significant and what was your specific contribution?',
-        'difficulty': 'easy',
-        'category': 'achievement',
-        'expected_keywords': ['achievement', 'impact', 'contribution', 'success', 'measurable', 'proud'],
-        'star_required': True
-    },
-    {
-        'id': 'BEH_5',
-        'question': 'Describe a time when you had to work with a difficult stakeholder or client. How did you manage the relationship?',
-        'difficulty': 'hard',
-        'category': 'stakeholder_management',
-        'expected_keywords': ['stakeholder', 'difficult', 'communication', 'expectations', 'relationship', 'diplomacy'],
-        'star_required': True
-    },
-    {
-        'id': 'BEH_6',
-        'question': 'Tell me about a time when you identified a process improvement. How did you implement it and what was the impact?',
-        'difficulty': 'medium',
-        'category': 'initiative',
-        'expected_keywords': ['improvement', 'initiative', 'process', 'efficiency', 'implementation', 'impact'],
-        'star_required': True
-    }
-]
+# ---------- backward-compat guard (if anyone references the old constant) ----
+# The imported ROLE_QUESTION_BANKS is canonical.  No duplicate definition here.
+# Legacy references:  ROLE_QUESTION_BANKS  and  UNIVERSAL_BEHAVIORAL_QUESTIONS
+# are now re-exported from question_banks.py — see import above.
+# =============================================================================
+_LEGACY_PLACEHOLDER = True  # noqa: keep old line count stable for minimal diff
 
 
 # ============================================================================
@@ -432,7 +73,7 @@ def detect_role_from_job(job: Dict) -> str:
 def generate_dynamic_interview_questions(
     job: Dict,
     candidate: Optional[Dict] = None,
-    num_questions: int = 10,
+    num_questions: int = 25,
     include_behavioral: bool = True,
     difficulty_distribution: Optional[Dict] = None
 ) -> List[Dict]:

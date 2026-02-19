@@ -7,6 +7,7 @@ from functools import wraps
 from flask import jsonify
 from flask_jwt_extended import get_jwt_identity, verify_jwt_in_request
 from typing import List, Set, Dict
+from bson import ObjectId
 import logging
 
 logger = logging.getLogger(__name__)
@@ -244,12 +245,24 @@ def require_permission(permission: str, allow_self: bool = False):
                 verify_jwt_in_request()
                 
                 # Get user identity from JWT
-                from backend.models.database import Database
-                db = Database()
+                from backend.models.database import get_db
+                db = get_db()
                 
                 current_user_id = get_jwt_identity()
-                users = db.get_database().users
-                user = users.find_one({'_id': current_user_id})
+                
+                # Handle both string and dict JWT identity formats
+                if isinstance(current_user_id, dict):
+                    user_id_str = current_user_id.get('user_id', '')
+                else:
+                    user_id_str = str(current_user_id)
+                
+                users = db['users']
+                # Try ObjectId lookup first, then string fallback
+                user = None
+                try:
+                    user = users.find_one({'_id': ObjectId(user_id_str)})
+                except Exception:
+                    user = users.find_one({'_id': user_id_str})
                 
                 if not user:
                     return jsonify({'error': 'User not found'}), 404
@@ -264,11 +277,11 @@ def require_permission(permission: str, allow_self: bool = False):
                 if allow_self:
                     # Extract resource_id from kwargs or args
                     resource_id = kwargs.get('user_id') or kwargs.get('candidate_id')
-                    if resource_id and str(resource_id) == str(current_user_id):
+                    if resource_id and str(resource_id) == str(user_id_str):
                         return fn(*args, **kwargs)
                 
                 logger.warning(
-                    f"Permission denied: User {current_user_id} (role: {user_role}) "
+                    f"Permission denied: User {user_id_str} (role: {user_role}) "
                     f"attempted to access {permission}"
                 )
                 
@@ -298,12 +311,23 @@ def require_any_permission(permissions: List[str]):
             try:
                 verify_jwt_in_request()
                 
-                from backend.models.database import Database
-                db = Database()
+                from backend.models.database import get_db
+                db = get_db()
                 
                 current_user_id = get_jwt_identity()
-                users = db.get_database().users
-                user = users.find_one({'_id': current_user_id})
+                
+                # Handle both string and dict JWT identity formats
+                if isinstance(current_user_id, dict):
+                    user_id_str = current_user_id.get('user_id', '')
+                else:
+                    user_id_str = str(current_user_id)
+                
+                users = db['users']
+                user = None
+                try:
+                    user = users.find_one({'_id': ObjectId(user_id_str)})
+                except Exception:
+                    user = users.find_one({'_id': user_id_str})
                 
                 if not user:
                     return jsonify({'error': 'User not found'}), 404
@@ -314,7 +338,7 @@ def require_any_permission(permissions: List[str]):
                     return fn(*args, **kwargs)
                 
                 logger.warning(
-                    f"Permission denied: User {current_user_id} (role: {user_role}) "
+                    f"Permission denied: User {user_id_str} (role: {user_role}) "
                     f"attempted to access resource requiring: {permissions}"
                 )
                 
@@ -344,12 +368,23 @@ def require_role(allowed_roles: List[str]):
             try:
                 verify_jwt_in_request()
                 
-                from backend.models.database import Database
-                db = Database()
+                from backend.models.database import get_db
+                db = get_db()
                 
                 current_user_id = get_jwt_identity()
-                users = db.get_database().users
-                user = users.find_one({'_id': current_user_id})
+                
+                # Handle both string and dict JWT identity formats
+                if isinstance(current_user_id, dict):
+                    user_id_str = current_user_id.get('user_id', '')
+                else:
+                    user_id_str = str(current_user_id)
+                
+                users = db['users']
+                user = None
+                try:
+                    user = users.find_one({'_id': ObjectId(user_id_str)})
+                except Exception:
+                    user = users.find_one({'_id': user_id_str})
                 
                 if not user:
                     return jsonify({'error': 'User not found'}), 404
@@ -360,7 +395,7 @@ def require_role(allowed_roles: List[str]):
                     return fn(*args, **kwargs)
                 
                 logger.warning(
-                    f"Role check failed: User {current_user_id} (role: {user_role}) "
+                    f"Role check failed: User {user_id_str} (role: {user_role}) "
                     f"attempted to access resource requiring roles: {allowed_roles}"
                 )
                 

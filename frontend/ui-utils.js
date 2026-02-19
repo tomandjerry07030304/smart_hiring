@@ -117,7 +117,7 @@ class LoadingManager {
 
     show(message = 'Loading...') {
         this.count++;
-        
+
         if (!this.overlay) {
             this.overlay = document.createElement('div');
             this.overlay.className = 'loading-overlay';
@@ -136,7 +136,7 @@ class LoadingManager {
 
     hide() {
         this.count = Math.max(0, this.count - 1);
-        
+
         if (this.count === 0 && this.overlay) {
             this.overlay.remove();
             this.overlay = null;
@@ -193,7 +193,7 @@ function showSkeletonLoader(containerId, type = 'card', count = 3) {
     } else if (type === 'table') {
         html = createSkeletonTable(count);
     }
-    
+
     container.innerHTML = html;
 }
 
@@ -237,9 +237,9 @@ function announceToScreenReader(message, priority = 'polite') {
     announcement.setAttribute('aria-live', priority);
     announcement.className = 'sr-only';
     announcement.textContent = message;
-    
+
     document.body.appendChild(announcement);
-    
+
     setTimeout(() => {
         document.body.removeChild(announcement);
     }, 1000);
@@ -252,7 +252,7 @@ function trapFocus(element) {
     const firstElement = focusableElements[0];
     const lastElement = focusableElements[focusableElements.length - 1];
 
-    element.addEventListener('keydown', function(e) {
+    element.addEventListener('keydown', function (e) {
         if (e.key === 'Tab') {
             if (e.shiftKey) {
                 if (document.activeElement === firstElement) {
@@ -266,7 +266,7 @@ function trapFocus(element) {
                 }
             }
         }
-        
+
         if (e.key === 'Escape') {
             const closeBtn = element.querySelector('[data-close], .modal-close, .close');
             if (closeBtn) closeBtn.click();
@@ -285,7 +285,7 @@ function smoothScrollTo(targetId, offset = 0) {
     if (!target) return;
 
     const targetPosition = target.getBoundingClientRect().top + window.pageYOffset - offset;
-    
+
     window.scrollTo({
         top: targetPosition,
         behavior: 'smooth'
@@ -308,7 +308,7 @@ function debounce(func, wait) {
 // Throttle utility
 function throttle(func, limit) {
     let inThrottle;
-    return function(...args) {
+    return function (...args) {
         if (!inThrottle) {
             func.apply(this, args);
             inThrottle = true;
@@ -344,9 +344,9 @@ function confirmDialog(message, title = 'Confirm Action') {
                 </div>
             </div>
         `;
-        
+
         document.body.appendChild(dialog);
-        
+
         const handleClick = (e) => {
             const action = e.target.getAttribute('data-action');
             if (action) {
@@ -354,13 +354,13 @@ function confirmDialog(message, title = 'Confirm Action') {
                 resolve(action === 'confirm');
             }
         };
-        
+
         dialog.addEventListener('click', handleClick);
-        
+
         // Focus trap
         const modalContent = dialog.querySelector('.modal-content');
         trapFocus(modalContent);
-        
+
         // Focus confirm button
         const confirmBtn = dialog.querySelector('[data-action="confirm"]');
         setTimeout(() => confirmBtn.focus(), 100);
@@ -372,33 +372,33 @@ async function fetchWithUI(url, options = {}) {
     const showLoading = options.showLoading !== false;
     const showSuccess = options.showSuccess !== false;
     const showError = options.showError !== false;
-    
+
     if (showLoading) {
         loading.show(options.loadingMessage || 'Loading...');
     }
-    
+
     try {
         const response = await fetch(url, options);
-        
+
         if (!response.ok) {
             const errorData = await response.json().catch(() => ({}));
             throw new Error(errorData.error || `HTTP ${response.status}`);
         }
-        
+
         const data = await response.json();
-        
+
         if (showSuccess && options.successMessage) {
             toast.success(options.successMessage);
         }
-        
+
         return { success: true, data };
-        
+
     } catch (error) {
         if (showError) {
             toast.error(error.message || 'An error occurred');
         }
         return { success: false, error: error.message };
-        
+
     } finally {
         if (showLoading) {
             loading.hide();
@@ -417,7 +417,7 @@ class KeyboardShortcuts {
         document.addEventListener('keydown', (e) => {
             const key = this.getKeyString(e);
             const handler = this.shortcuts.get(key);
-            
+
             if (handler) {
                 e.preventDefault();
                 handler(e);
@@ -431,7 +431,10 @@ class KeyboardShortcuts {
         if (e.altKey) parts.push('alt');
         if (e.shiftKey) parts.push('shift');
         if (e.metaKey) parts.push('meta');
-        parts.push(e.key.toLowerCase());
+        // Guard against undefined key (happens with some browser events)
+        if (e.key) {
+            parts.push(e.key.toLowerCase());
+        }
         return parts.join('+');
     }
 
@@ -454,13 +457,13 @@ function initAccessibility() {
     skipLink.className = 'skip-to-main';
     skipLink.textContent = 'Skip to main content';
     document.body.insertBefore(skipLink, document.body.firstChild);
-    
+
     // Add main content ID if not exists
     const mainContent = document.querySelector('main, .main-content, [role="main"]');
     if (mainContent && !mainContent.id) {
         mainContent.id = 'main-content';
     }
-    
+
     // Enhance buttons with ripple effect
     document.querySelectorAll('button, .btn').forEach(btn => {
         if (!btn.classList.contains('no-ripple')) {
@@ -490,5 +493,60 @@ window.uiUtils = {
     copyToClipboard,
     confirmDialog,
     fetchWithUI,
-    keyboard
+    fetchWithUI,
+    keyboard,
+    toggleTheme,
+    setTheme
 };
+
+/* ==================== THEME MANAGEMENT ==================== */
+function toggleTheme() {
+    const isDark = document.body.getAttribute('data-theme') === 'dark';
+    setTheme(isDark ? 'light' : 'dark');
+}
+
+function setTheme(theme) {
+    document.body.setAttribute('data-theme', theme);
+    localStorage.setItem('theme', theme);
+    updateThemeIcon(theme);
+}
+
+function updateThemeIcon(theme) {
+    // Wait for DOM if not ready
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', () => updateThemeIcon(theme));
+        return;
+    }
+
+    // Update all theme icons (both fixed and navbar versions)
+    // Show the icon for the mode you'll switch TO, not the current mode
+    const sunIcons = document.querySelectorAll('.sun-icon');
+    const moonIcons = document.querySelectorAll('.moon-icon');
+
+    sunIcons.forEach(sunIcon => {
+        if (theme === 'dark') {
+            // In dark mode, show sun icon (to switch to light)
+            sunIcon.style.display = 'inline-block';
+        } else {
+            // In light mode, hide sun icon
+            sunIcon.style.display = 'none';
+        }
+    });
+
+    moonIcons.forEach(moonIcon => {
+        if (theme === 'dark') {
+            // In dark mode, hide moon icon
+            moonIcon.style.display = 'none';
+        } else {
+            // In light mode, show moon icon (to switch to dark)
+            moonIcon.style.display = 'inline-block';
+        }
+    });
+}
+
+// Initialize theme immediately to prevent flash
+(function initTheme() {
+    const savedTheme = localStorage.getItem('theme') ||
+        (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+    setTheme(savedTheme);
+})();

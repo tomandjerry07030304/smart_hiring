@@ -1,5 +1,8 @@
 import re
 
+from config.scoring_config import ScoringConfig
+from config.skill_ontology import SKILL_DATABASE
+
 # ML libraries not available in Render free tier (size constraints)
 # Simplified matching without scikit-learn
 def _get_tfidf_vectorizer():
@@ -8,91 +11,8 @@ def _get_tfidf_vectorizer():
 def _get_cosine_similarity():
     return None
 
-# Master skills list - Comprehensive technical skills database (200+ skills)
-SKILLS_MASTER = [
-    # Programming Languages
-    "python", "java", "javascript", "typescript", "c++", "c#", "c", "go", "golang", "rust",
-    "php", "ruby", "swift", "kotlin", "scala", "r", "perl", "lua", "dart", "objective-c",
-    "visual basic", "vb.net", "cobol", "fortran", "haskell", "elixir", "clojure", "groovy",
-    
-    # Web Frontend
-    "html", "html5", "css", "css3", "sass", "scss", "less", "react", "react.js", "reactjs",
-    "angular", "angular.js", "angularjs", "vue", "vue.js", "vuejs", "svelte", "next.js", "nextjs",
-    "nuxt.js", "gatsby", "jquery", "bootstrap", "tailwind", "tailwind css", "material-ui",
-    "webpack", "vite", "parcel", "rollup", "babel", "redux", "mobx", "vuex", "pinia",
-    
-    # Web Backend & Frameworks
-    "node", "node.js", "nodejs", "express", "express.js", "fastify", "nest.js", "nestjs",
-    "flask", "django", "fastapi", "spring", "spring boot", "springboot", "spring framework",
-    "asp.net", ".net", "dotnet", ".net core", "laravel", "symfony", "codeigniter",
-    "ruby on rails", "rails", "sinatra", "gin", "echo", "fiber", "actix", "rocket",
-    
-    # Mobile Development
-    "react native", "flutter", "ios", "android", "xamarin", "ionic", "cordova", "phonegap",
-    "swiftui", "uikit", "jetpack compose", "kotlin multiplatform",
-    
-    # Databases & Data Storage
-    "sql", "mysql", "postgresql", "postgres", "oracle", "sql server", "mssql", "db2",
-    "mongodb", "cassandra", "couchdb", "dynamodb", "redis", "memcached", "elasticsearch",
-    "neo4j", "arangodb", "influxdb", "timescaledb", "cockroachdb", "mariadb", "sqlite",
-    
-    # Cloud Platforms & Services
-    "aws", "amazon web services", "ec2", "s3", "lambda", "rds", "dynamodb", "cloudfront",
-    "azure", "microsoft azure", "gcp", "google cloud", "google cloud platform", "firebase",
-    "heroku", "digitalocean", "linode", "vultr", "cloudflare", "vercel", "netlify", "render",
-    
-    # DevOps & CI/CD
-    "docker", "kubernetes", "k8s", "jenkins", "gitlab ci", "github actions", "circleci",
-    "travis ci", "bamboo", "teamcity", "ansible", "terraform", "puppet", "chef", "saltstack",
-    "vagrant", "helm", "istio", "prometheus", "grafana", "nagios", "datadog", "new relic",
-    "ci/cd", "devops", "gitops", "argocd", "flux", "spinnaker",
-    
-    # Version Control & Collaboration
-    "git", "github", "gitlab", "bitbucket", "svn", "mercurial", "perforce", "cvs",
-    "jira", "confluence", "trello", "asana", "slack", "microsoft teams", "zoom",
-    
-    # Data Science & ML
-    "machine learning", "deep learning", "artificial intelligence", "ai", "ml", "nlp",
-    "natural language processing", "computer vision", "neural networks", "cnn", "rnn", "lstm",
-    "transformer", "bert", "gpt", "pandas", "numpy", "scipy", "scikit-learn", "sklearn",
-    "tensorflow", "keras", "pytorch", "jax", "xgboost", "lightgbm", "catboost",
-    "opencv", "yolo", "detectron", "hugging face", "langchain", "llama", "stable diffusion",
-    
-    # Big Data & Analytics
-    "hadoop", "spark", "apache spark", "pyspark", "kafka", "apache kafka", "flink", "storm",
-    "hive", "pig", "hbase", "presto", "databricks", "snowflake", "redshift", "bigquery",
-    "tableau", "power bi", "powerbi", "looker", "qlik", "metabase", "superset",
-    
-    # Testing & Quality Assurance
-    "junit", "pytest", "jest", "mocha", "chai", "jasmine", "selenium", "cypress",
-    "playwright", "testng", "cucumber", "postman", "jmeter", "gatling", "k6",
-    "unit testing", "integration testing", "e2e testing", "tdd", "bdd",
-    
-    # API & Integration
-    "rest", "rest api", "restful", "graphql", "grpc", "soap", "websocket", "api gateway",
-    "microservices", "service mesh", "api design", "openapi", "swagger", "postman",
-    
-    # Security & Authentication
-    "oauth", "oauth2", "jwt", "saml", "ldap", "active directory", "ssl", "tls", "https",
-    "penetration testing", "owasp", "security", "cryptography", "encryption", "vault",
-    
-    # Operating Systems & Tools
-    "linux", "unix", "ubuntu", "centos", "redhat", "debian", "windows", "windows server",
-    "macos", "bash", "shell scripting", "powershell", "vim", "emacs", "vscode", "intellij",
-    
-    # Networking & Infrastructure
-    "tcp/ip", "dns", "dhcp", "vpn", "nginx", "apache", "haproxy", "load balancing",
-    "cdn", "firewall", "networking", "http", "https", "routing", "switching",
-    
-    # Project Management & Methodologies
-    "agile", "scrum", "kanban", "waterfall", "lean", "six sigma", "pmp", "prince2",
-    "sprint planning", "retrospective", "standup", "product owner", "scrum master",
-    
-    # Other Technologies & Tools
-    "excel", "vba", "matlab", "labview", "arduino", "raspberry pi", "iot", "blockchain",
-    "ethereum", "solidity", "web3", "smart contracts", "sap", "salesforce", "crm", "erp",
-    "photoshop", "illustrator", "figma", "sketch", "adobe xd", "ui/ux", "design thinking"
-]
+# Gap 10: Skills loaded from unified skill_ontology.json (single source of truth)
+SKILLS_MASTER = sorted(SKILL_DATABASE)
 
 def extract_skills(text):
     """Extract skills from text using dictionary matching"""
@@ -144,28 +64,36 @@ def calculate_skill_match(job_skills, resume_skills):
     
     return float(match_fraction)
 
-def compute_overall_score(tfidf_score, skill_match, cci_score=None, sim_weight=0.5, skill_weight=0.3, cci_weight=0.2):
+def compute_overall_score(tfidf_score, skill_match, cci_score=None, sim_weight=None, skill_weight=None, cci_weight=None):
     """
-    Compute overall candidate score
+    Compute overall candidate score.
+    
+    Weights default to canonical values from ScoringConfig (Gap 6 fix).
+    Explicit overrides are accepted for backward compatibility but
+    new callers should rely on the defaults.
     
     Args:
         tfidf_score: TF-IDF similarity score (0-1)
         skill_match: Skill match fraction (0-1)
         cci_score: Career Consistency Index (0-100), optional
-        sim_weight: Weight for similarity
-        skill_weight: Weight for skill match
-        cci_weight: Weight for CCI
+        sim_weight: Weight for similarity (default: canonical)
+        skill_weight: Weight for skill match (default: canonical)
+        cci_weight: Weight for CCI (default: canonical)
     """
     if cci_score is None:
-        # If no CCI, redistribute weight
-        sim_weight = 0.6
-        skill_weight = 0.4
-        cci_weight = 0.0
-        score = (sim_weight * tfidf_score + skill_weight * skill_match) * 100
+        # No CCI available — redistribute proportionally
+        w = ScoringConfig.weights_for_without_cci('similarity', 'skills')
+        sw = sim_weight if sim_weight is not None else w['similarity']
+        skw = skill_weight if skill_weight is not None else w['skills']
+        score = (sw * tfidf_score + skw * skill_match) * 100
     else:
-        # Normalize CCI to 0-1
+        # Full 3-component scoring
+        w = ScoringConfig.weights_for('similarity', 'skills', 'cci')
+        sw = sim_weight if sim_weight is not None else w['similarity']
+        skw = skill_weight if skill_weight is not None else w['skills']
+        cw = cci_weight if cci_weight is not None else w['cci']
         cci_normalized = cci_score / 100.0
-        score = (sim_weight * tfidf_score + skill_weight * skill_match + cci_weight * cci_normalized) * 100
+        score = (sw * tfidf_score + skw * skill_match + cw * cci_normalized) * 100
     
     return round(float(score), 2)
 

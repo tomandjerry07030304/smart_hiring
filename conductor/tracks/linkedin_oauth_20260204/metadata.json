@@ -1,8 +1,0 @@
-{
-  "track_id": "linkedin_oauth_20260204",
-  "type": "feature",
-  "status": "new",
-  "created_at": "2026-02-04T11:04:00Z",
-  "updated_at": "2026-02-04T11:04:00Z",
-  "description": "Implement LinkedIn OAuth login for candidate registration"
-}

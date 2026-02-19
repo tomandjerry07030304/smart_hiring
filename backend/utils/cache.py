@@ -11,13 +11,19 @@ import hashlib
 
 logger = logging.getLogger(__name__)
 
+# Check if Redis is explicitly disabled
+REDIS_ENABLED = os.getenv('REDIS_ENABLED', 'true').lower() == 'true'
+
 # Try to import Redis, but make it optional
 try:
     import redis
-    REDIS_AVAILABLE = True
+    REDIS_AVAILABLE = True and REDIS_ENABLED
 except ImportError:
     REDIS_AVAILABLE = False
-    logger.warning("Redis not available - caching disabled")
+    if REDIS_ENABLED:
+        logger.warning("Redis not available - caching disabled")
+    else:
+        logger.info("ℹ️ Redis disabled via REDIS_ENABLED=false - caching disabled")
 
 
 class CacheManager:

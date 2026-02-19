@@ -201,17 +201,21 @@ def send_new_application_alert(recruiter_email, recruiter_name, candidate_name, 
 @celery_app.task(base=SafeTask, name='send_application_confirmation')
 def send_application_confirmation(candidate_email, candidate_name, job_title, company_name):
     """
-    Send application confirmation to candidate
+    Send application confirmation to candidate with fraud detection warning
     Priority: Medium
     """
+    from datetime import datetime as dt
     subject = f"Application Received: {job_title}"
     
     body = f"""
     Hi {candidate_name},
     
-    Your application for {job_title} at {company_name} has been received.
+    Your application for {job_title} at {company_name} has been received on {dt.now().strftime('%B %d, %Y at %I:%M %p')}.
     
     We will review your application and get back to you soon.
+    
+    IMPORTANT: If you did NOT apply for this job, someone may be using your account.
+    Report it immediately at: https://my-project-smart-hiring.onrender.com/api/auth/report-fraud
     
     Best of luck!
     Smart Hiring Team
@@ -219,19 +223,52 @@ def send_application_confirmation(candidate_email, candidate_name, job_title, co
     
     html_body = f"""
     <html>
-        <body style="font-family: Arial, sans-serif;">
-            <h2>Application Received! ✅</h2>
-            <p>Hi <strong>{candidate_name}</strong>,</p>
-            <p>Your application for <strong>{job_title}</strong> at <strong>{company_name}</strong> has been successfully submitted.</p>
-            <p><strong>What happens next?</strong></p>
-            <ol>
-                <li>Our team will review your application</li>
-                <li>We'll match your skills with job requirements</li>
-                <li>You'll be notified about any status updates</li>
-            </ol>
-            <p>You can track your application status anytime in your dashboard.</p>
-            <p>Good luck! 🍀</p>
-            <p>Best regards,<br><strong>Smart Hiring Team</strong></p>
+        <body style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+            <div style="background: linear-gradient(135deg, #4F46E5 0%, #7c3aed 100%); padding: 30px; text-align: center; border-radius: 12px 12px 0 0;">
+                <h1 style="color: white; margin: 0;">🎯 Smart Hiring</h1>
+                <p style="color: rgba(255,255,255,0.9); margin: 8px 0 0 0;">Your Gateway to Better Talent Management</p>
+            </div>
+            <div style="padding: 30px; background: white;">
+                <h2>Application Received! ✅</h2>
+                <p>Hi <strong>{candidate_name}</strong>,</p>
+                <p>Your application for <strong>{job_title}</strong> at <strong>{company_name}</strong> has been successfully submitted.</p>
+                
+                <div style="background: #f0fdf4; padding: 20px; border-radius: 12px; margin: 20px 0; border-left: 4px solid #22c55e;">
+                    <h3 style="margin: 0 0 12px 0; color: #166534;">📋 Application Details</h3>
+                    <p style="margin: 4px 0;"><strong>Position:</strong> {job_title}</p>
+                    <p style="margin: 4px 0;"><strong>Company:</strong> {company_name}</p>
+                    <p style="margin: 4px 0;"><strong>Applied On:</strong> {dt.now().strftime('%B %d, %Y at %I:%M %p')}</p>
+                    <p style="margin: 4px 0;"><strong>Status:</strong> <span style="background: #dbeafe; color: #1e40af; padding: 2px 8px; border-radius: 4px;">Under Review</span></p>
+                </div>
+                
+                <p><strong>What happens next?</strong></p>
+                <ol>
+                    <li>Our AI system will analyze your resume (bias-free)</li>
+                    <li>We'll match your skills with job requirements</li>
+                    <li>Fairness audit ensures equal evaluation</li>
+                    <li>You'll be notified about any status updates</li>
+                </ol>
+                
+                <div style="background: #fef2f2; padding: 16px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #dc2626;">
+                    <p style="margin: 0 0 8px 0; color: #991b1b;"><strong>⚠️ Didn't apply for this job?</strong></p>
+                    <p style="margin: 0; color: #991b1b; font-size: 14px;">
+                        If you did not submit this application, someone may be using your account. 
+                        Your account will be temporarily locked for security.
+                    </p>
+                    <p style="text-align: center; margin: 12px 0 0 0;">
+                        <a href="https://my-project-smart-hiring.onrender.com/api/auth/report-fraud" 
+                           style="display: inline-block; background: #dc2626; color: white; padding: 10px 20px; text-decoration: none; border-radius: 8px; font-weight: 600;">
+                            🚨 Report Unauthorized Activity
+                        </a>
+                    </p>
+                </div>
+                
+                <p>Good luck! 🍀</p>
+                <p>Best regards,<br><strong>Smart Hiring Team</strong></p>
+            </div>
+            <div style="background: #f7fafc; padding: 20px; text-align: center; border-radius: 0 0 12px 12px; color: #718096; font-size: 12px;">
+                <p>© {dt.now().year} Smart Hiring System. All rights reserved.</p>
+            </div>
         </body>
     </html>
     """

@@ -7,11 +7,13 @@ from backend.models.database import get_db
 from backend.models.job import Job, Application
 from backend.utils.matching import extract_skills
 from backend.utils.email_service import email_service
+from backend.security.rbac import require_permission, Permissions
 
 bp = Blueprint('jobs', __name__)
 
 @bp.route('/create', methods=['POST'])
 @jwt_required()
+@require_permission(Permissions.CREATE_JOB)
 def create_job():
     """Create a new job posting (recruiter only)"""
     try:
@@ -137,6 +139,7 @@ def list_jobs():
 
 @bp.route('/company', methods=['GET'])
 @jwt_required()
+@require_permission(Permissions.VIEW_JOB)
 def get_company_jobs():
     """Get jobs posted by the logged-in recruiter/company"""
     try:
@@ -183,6 +186,7 @@ def get_company_jobs():
 
 @bp.route('/company/stats', methods=['GET'])
 @jwt_required()
+@require_permission(Permissions.VIEW_COMPANY_ANALYTICS)
 def get_company_stats():
     """Get dashboard statistics for the logged-in recruiter/company"""
     try:
@@ -240,6 +244,7 @@ def get_company_stats():
 
 @bp.route('/company/applications', methods=['GET'])
 @jwt_required()
+@require_permission(Permissions.VIEW_APPLICATIONS)
 def get_company_applications():
     """Get all applications for jobs posted by the logged-in recruiter"""
     try:
@@ -333,6 +338,7 @@ def get_job(job_id):
 
 @bp.route('/<job_id>', methods=['PUT'])
 @jwt_required()
+@require_permission(Permissions.EDIT_JOB)
 def update_job(job_id):
     """Update job posting (recruiter only, own jobs)"""
     try:
@@ -375,12 +381,22 @@ def update_job(job_id):
 
 @bp.route('/<job_id>/applications', methods=['GET'])
 @jwt_required()
+@require_permission(Permissions.VIEW_APPLICATIONS)
 def get_job_applications(job_id):
     """Get all applications for a job (recruiter only)"""
     try:
         current_user = get_jwt_identity()
+        claims = get_jwt()
         
-        if current_user['role'] not in ['recruiter', 'admin']:
+        # Handle both dict and string JWT identity formats
+        if isinstance(current_user, dict):
+            user_id = current_user.get('user_id', '')
+            role = current_user.get('role', 'candidate')
+        else:
+            user_id = current_user
+            role = claims.get('role', 'candidate')
+        
+        if role not in ['recruiter', 'company', 'admin']:
             return jsonify({'error': 'Only recruiters can view applications'}), 403
         
         db = get_db()
@@ -392,7 +408,7 @@ def get_job_applications(job_id):
         if not job:
             return jsonify({'error': 'Job not found'}), 404
         
-        if str(job['recruiter_id']) != current_user['user_id'] and current_user['role'] != 'admin':
+        if str(job['recruiter_id']) != user_id and role != 'admin':
             return jsonify({'error': 'Not authorized'}), 403
         
         # Get applications

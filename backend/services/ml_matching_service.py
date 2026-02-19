@@ -21,6 +21,9 @@ import logging
 from typing import Dict, List, Optional, Tuple, Any
 from datetime import datetime
 
+from config.scoring_config import ScoringConfig
+from config.skill_ontology import SKILL_DATABASE, SKILL_ALIASES
+
 # P0 FIX: Make numpy optional for Lite environments
 try:
     import numpy as np
@@ -35,6 +38,9 @@ logger = logging.getLogger(__name__)
 # Check if ML models should be disabled (for memory-constrained environments like Render free tier)
 DISABLE_ML_MODELS = os.getenv('DISABLE_ML_MODELS', 'false').lower() == 'true' or not NUMPY_AVAILABLE
 
+# Check if sentence-transformers is explicitly disabled
+USE_SENTENCE_TRANSFORMERS = os.getenv('USE_SENTENCE_TRANSFORMERS', 'true').lower() == 'true'
+
 # Try to import sentence-transformers (P0 ML requirement)
 SBERT_AVAILABLE = False
 sbert_model = None
@@ -42,7 +48,10 @@ if DISABLE_ML_MODELS:
     if not NUMPY_AVAILABLE:
         logger.warning("⚠️ Numpy missing - ML models disabled")
     else:
-        logger.info("⚠️ ML models disabled via DISABLE_ML_MODELS env var - using TF-IDF only")
+        logger.info("ℹ️ ML models disabled via DISABLE_ML_MODELS env var - using TF-IDF only")
+elif not USE_SENTENCE_TRANSFORMERS:
+    # Explicitly disabled via env var - this is intentional, not a warning
+    logger.info("ℹ️ Sentence-transformers disabled via USE_SENTENCE_TRANSFORMERS=false - using TF-IDF")
 else:
     try:
         from sentence_transformers import SentenceTransformer
@@ -108,35 +117,11 @@ class MLMatchingService:
     Uses Sentence-BERT for semantic matching with TF-IDF fallback
     """
     
-    # Comprehensive skills database
-    SKILLS_MASTER = [
-        # Programming Languages
-        "python", "java", "javascript", "typescript", "c++", "c#", "go", "rust",
-        "php", "ruby", "swift", "kotlin", "scala", "r", "sql",
-        
-        # Web Frontend
-        "react", "angular", "vue", "html", "css", "next.js", "tailwind",
-        "bootstrap", "sass", "webpack", "redux",
-        
-        # Backend Frameworks
-        "node.js", "express", "django", "flask", "fastapi", "spring", "spring boot",
-        ".net", "laravel", "rails",
-        
-        # Databases
-        "mysql", "postgresql", "mongodb", "redis", "elasticsearch", "cassandra",
-        "dynamodb", "oracle", "sql server",
-        
-        # Cloud & DevOps
-        "aws", "azure", "gcp", "docker", "kubernetes", "jenkins", "terraform",
-        "ansible", "ci/cd", "devops", "github actions", "gitlab ci",
-        
-        # Data Science & ML
-        "machine learning", "deep learning", "tensorflow", "pytorch", "pandas",
-        "numpy", "scikit-learn", "nlp", "computer vision", "data science",
-        
-        # Tools & Methodologies
-        "git", "jira", "agile", "scrum", "rest api", "graphql", "microservices"
-    ]
+    # Gap 10: Skills loaded from unified skill_ontology.json
+    SKILLS_MASTER = sorted(SKILL_DATABASE)
+    
+    # Gap 10: Aliases loaded from unified skill_ontology.json
+    SKILL_ALIASES = SKILL_ALIASES
     
     def __init__(self):
         """Initialize ML matching service"""
@@ -193,7 +178,11 @@ class MLMatchingService:
         if SKLEARN_AVAILABLE and self.tfidf_vectorizer is not None:
             try:
                 tfidf_matrix = self.tfidf_vectorizer.fit_transform([text1, text2])
-                similarity = float(sklearn_cosine(tfidf_matrix[0], tfidf_matrix[1])[0][0])
+                raw_similarity = float(sklearn_cosine(tfidf_matrix[0], tfidf_matrix[1])[0][0])
+                # TF-IDF calibration: raw cosine between short job desc and long resume
+                # is typically 0.05-0.25. Apply a ×1.4 boost (capped at 1.0) to bring
+                # scores into a realistic 0.10-0.45 range before weighting.
+                similarity = min(raw_similarity * 1.4, 1.0)
                 latency_ms = (time.time() - start_time) * 1000
                 self.metrics.record_match('tfidf', latency_ms, similarity)
                 return similarity, 'tfidf'
@@ -204,6 +193,8 @@ class MLMatchingService:
         words1 = set(text1.lower().split())
         words2 = set(text2.lower().split())
         overlap = len(words1 & words2) / max(len(words1 | words2), 1)
+        # Same calibration for keyword fallback
+        overlap = min(overlap * 1.4, 1.0)
         latency_ms = (time.time() - start_time) * 1000
         self.metrics.record_match('keyword', latency_ms, overlap)
         return overlap, 'keyword'
@@ -223,9 +214,21 @@ class MLMatchingService:
         
         return list(set(found_skills))
     
+    def _normalize_skill(self, skill: str) -> str:
+        """Normalize a skill name using the alias map."""
+        s = skill.strip().lower()
+        return self.SKILL_ALIASES.get(s, s)
+    
+    def _normalize_skill_set(self, skills: List[str]) -> set:
+        """Normalize a list of skills, returning canonical names."""
+        return set(self._normalize_skill(s) for s in skills if s.strip())
+    
     def compute_skill_match(self, job_skills: List[str], candidate_skills: List[str]) -> Dict[str, Any]:
         """
-        Compute skill match between job requirements and candidate skills
+        Compute skill match between job requirements and candidate skills.
+        
+        Uses alias-aware normalization so "ML" matches "machine learning",
+        "react.js" matches "react", etc.
         
         Returns:
             Dict with match score, matched skills, and missing skills
@@ -238,8 +241,9 @@ class MLMatchingService:
                 'extra_skills': candidate_skills
             }
         
-        job_set = set(s.lower() for s in job_skills)
-        candidate_set = set(s.lower() for s in candidate_skills)
+        # Normalize through alias map
+        job_set = self._normalize_skill_set(job_skills)
+        candidate_set = self._normalize_skill_set(candidate_skills)
         
         matched = job_set & candidate_set
         missing = job_set - candidate_set
@@ -249,9 +253,9 @@ class MLMatchingService:
         
         return {
             'score': score,
-            'matched_skills': list(matched),
-            'missing_skills': list(missing),
-            'extra_skills': list(extra)
+            'matched_skills': sorted(matched),
+            'missing_skills': sorted(missing),
+            'extra_skills': sorted(extra)
         }
     
     def compute_match_score(
@@ -284,14 +288,21 @@ class MLMatchingService:
         skill_result = self.compute_skill_match(job_skills, candidate_skills)
         skill_score = skill_result['score']
         
-        # Calculate weighted overall score
+        # Calculate weighted overall score — canonical weights from ScoringConfig (Gap 6)
         if cci_score is not None:
-            # With CCI: 50% semantic, 30% skills, 20% CCI
+            w = ScoringConfig.weights_for('similarity', 'skills', 'cci')
             cci_normalized = cci_score / 100.0
-            overall_score = (0.5 * semantic_score + 0.3 * skill_score + 0.2 * cci_normalized) * 100
+            overall_score = (
+                w['similarity'] * semantic_score +
+                w['skills'] * skill_score +
+                w['cci'] * cci_normalized
+            ) * 100
         else:
-            # Without CCI: 60% semantic, 40% skills
-            overall_score = (0.6 * semantic_score + 0.4 * skill_score) * 100
+            w = ScoringConfig.weights_for_without_cci('similarity', 'skills')
+            overall_score = (
+                w['similarity'] * semantic_score +
+                w['skills'] * skill_score
+            ) * 100
         
         overall_score = round(overall_score, 2)
         

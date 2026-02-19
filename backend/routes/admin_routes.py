@@ -10,12 +10,14 @@ from bson import ObjectId
 from datetime import datetime
 
 from backend.models.database import get_db
+from backend.security.rbac import require_permission, require_role, Permissions
 
 bp = Blueprint('admin', __name__)
 
 
 @bp.route('/stats', methods=['GET'])
 @jwt_required()
+@require_role(['admin'])
 def get_admin_stats():
     """Get platform-wide statistics for admin dashboard"""
     try:
@@ -72,6 +74,7 @@ def get_admin_stats():
 
 @bp.route('/users', methods=['GET'])
 @jwt_required()
+@require_permission(Permissions.VIEW_USERS)
 def get_all_users():
     """Get all users (admin only)"""
     try:
@@ -136,6 +139,7 @@ def get_all_users():
 
 @bp.route('/users/<user_id>/status', methods=['PUT'])
 @jwt_required()
+@require_permission(Permissions.MANAGE_USERS)
 def update_user_status(user_id):
     """Activate or deactivate a user (admin only)"""
     try:

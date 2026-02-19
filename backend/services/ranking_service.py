@@ -8,6 +8,8 @@ from datetime import datetime
 import re
 import logging
 
+from config.scoring_config import ScoringConfig
+
 logger = logging.getLogger(__name__)
 
 # P0 FIX: Make numpy optional for Lite environments
@@ -51,13 +53,13 @@ class MLCandidateRanker:
         self.vectorizer = TfidfVectorizer(max_features=1000, stop_words='english') if ML_AVAILABLE else None
         self.scaler = MinMaxScaler() if ML_AVAILABLE else None
         
-        # Feature weights (can be tuned based on historical data)
+        # Feature weights — sourced from canonical ScoringConfig (Gap 6 fix)
         self.weights = {
-            'skills_match': 0.35,
-            'experience': 0.25,
-            'education': 0.15,
-            'resume_similarity': 0.20,
-            'career_consistency': 0.05
+            'skills_match':       ScoringConfig.get('skills'),
+            'experience':         ScoringConfig.get('experience'),
+            'education':          ScoringConfig.get('education'),
+            'resume_similarity':  ScoringConfig.get('similarity'),
+            'career_consistency': ScoringConfig.get('cci'),
         }
     
     def rank_candidates(self, candidates: List[Dict], job: Dict) -> List[Dict]:

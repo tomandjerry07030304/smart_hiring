@@ -15,7 +15,7 @@ from flask_cors import CORS
 from flask_jwt_extended import JWTManager
 from config.config import config
 from backend.models.database import Database
-from backend.routes import auth_routes, job_routes, candidate_routes, company_routes, email_preferences_routes, assessment_routes, audit_routes, dsr_routes, dashboard_routes, ai_interview_routes, admin_routes, google_oauth_routes
+from backend.routes import auth_routes, job_routes, candidate_routes, company_routes, email_preferences_routes, assessment_routes, audit_routes, dsr_routes, dashboard_routes, ai_interview_routes, admin_routes, google_oauth_routes, interview_routes
 # Import enhanced v2 routes
 try:
     from backend.routes import ai_interview_routes_v2
@@ -38,69 +38,210 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# DEPLOYMENT AUTHORIZATION CHECK (Optional - can be disabled for cloud deployments)
-# Uncomment the following lines to enable license validation:
-# if not check_deployment_authorization():
-#     print("\n🚨 CRITICAL: Unauthorized deployment detected")
-#     print("This software is proprietary and requires a valid license.")
-#     print("Contact: mightyazad@gmail.com or admin@smarthiring.com")
-#     sys.exit(1)
 
-# Initialize Flask app with frontend folder
-frontend_folder = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'frontend'))
-app = Flask(__name__, static_folder=frontend_folder, static_url_path='')
+def create_app(config_name=None):
+    """
+    Application factory — creates and configures the Flask application.
 
-# Load configuration
-env = os.getenv('FLASK_ENV', 'development')
-app.config.from_object(config[env])
+    Args:
+        config_name: One of 'development', 'production', 'testing', or None
+                     (defaults to FLASK_ENV env-var, then 'development').
 
-# Initialize extensions
-# SECURITY: Configure CORS properly for production
-allowed_origins = os.getenv('ALLOWED_ORIGINS', 'http://localhost:3000,http://localhost:5000').split(',')
-CORS(app, 
-     resources={r"/api/*": {
-         "origins": allowed_origins,
-         "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-         "allow_headers": ["Content-Type", "Authorization"],
-         "expose_headers": ["Content-Type", "Authorization"],
-         "supports_credentials": True,
-         "max_age": 3600
-     }})
+    Returns:
+        Configured Flask application instance.
+    """
+    if config_name is None:
+        config_name = os.getenv('FLASK_ENV', 'development')
 
-# Initialize JWT Manager  
-jwt = JWTManager(app)
+    # Initialize Flask app with frontend folder
+    frontend_folder = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'frontend'))
+    flask_app = Flask(__name__, static_folder=frontend_folder, static_url_path='')
 
-# Security headers
-@app.after_request
-def set_security_headers(response):
-    """Add security headers to all responses"""
-    response.headers['X-Content-Type-Options'] = 'nosniff'
-    response.headers['X-Frame-Options'] = 'DENY'
-    response.headers['X-XSS-Protection'] = '1; mode=block'
-    response.headers['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains'
-    response.headers['Content-Security-Policy'] = "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self'"
-    return response
+    # Load configuration
+    flask_app.config.from_object(config[config_name])
 
-# Initialize database connection
-db = Database()
-db.connect(env)
+    # Initialize extensions
+    # SECURITY: Configure CORS properly for production
+    allowed_origins = os.getenv('ALLOWED_ORIGINS', 'http://localhost:3000,http://localhost:5000').split(',')
+    CORS(flask_app, 
+         resources={r"/api/*": {
+             "origins": allowed_origins,
+             "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+             "allow_headers": ["Content-Type", "Authorization"],
+             "expose_headers": ["Content-Type", "Authorization"],
+             "supports_credentials": True,
+             "max_age": 3600
+         }})
 
-# Auto-create test accounts on startup (for production deployment)
-def create_default_accounts():
+    # Initialize JWT Manager  
+    jwt = JWTManager(flask_app)
+
+    # Security headers
+    @flask_app.after_request
+    def set_security_headers(response):
+        """Add security headers to all responses"""
+        response.headers['X-Content-Type-Options'] = 'nosniff'
+        response.headers['X-Frame-Options'] = 'DENY'
+        response.headers['X-XSS-Protection'] = '1; mode=block'
+        response.headers['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains'
+        response.headers['Content-Security-Policy'] = "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self'"
+        return response
+
+    # Initialize database connection
+    db = Database()
+    db.connect(config_name)
+
+    # Auto-create test accounts on startup (skip in testing mode)
+    if config_name != 'testing':
+        _create_default_accounts(db)
+
+    # Register blueprints (API routes)
+    flask_app.register_blueprint(auth_routes.bp, url_prefix='/api/auth')
+    flask_app.register_blueprint(google_oauth_routes.bp, url_prefix='/api/auth')
+    flask_app.register_blueprint(job_routes.bp, url_prefix='/api/jobs')
+    flask_app.register_blueprint(candidate_routes.bp, url_prefix='/api/candidates')
+    flask_app.register_blueprint(company_routes.bp, url_prefix='/api/company')
+    flask_app.register_blueprint(email_preferences_routes.bp, url_prefix='/api/email')
+    flask_app.register_blueprint(assessment_routes.bp, url_prefix='/api/assessments')
+    flask_app.register_blueprint(audit_routes.bp, url_prefix='/api/audit')
+    flask_app.register_blueprint(dsr_routes.bp, url_prefix='/api/dsr')
+    flask_app.register_blueprint(dashboard_routes.bp, url_prefix='/api/dashboard')
+    flask_app.register_blueprint(ai_interview_routes.bp, url_prefix='/api/ai-interview')
+    flask_app.register_blueprint(interview_routes.bp, url_prefix='/api/interviews')
+    flask_app.register_blueprint(admin_routes.bp, url_prefix='/api/admin')
+
+    # Register V2 routes if available
+    if V2_ROUTES_AVAILABLE:
+        flask_app.register_blueprint(ai_interview_routes_v2.bp, url_prefix='/api/ai-interview-v2')
+        logger.info("✅ Enhanced V2 routes registered: LinkedIn integration, dynamic questions, fresher scoring")
+
+    # Try to register video interview routes
+    try:
+        from backend.routes import video_interview_routes
+        flask_app.register_blueprint(video_interview_routes.bp, url_prefix='/api/video-interview')
+        logger.info("✅ Video interview routes registered")
+    except ImportError:
+        logger.info("ℹ️ Video interview routes not available yet")
+
+    # Initialize monitoring & observability
+    initialize_monitoring(flask_app)
+
+    # Start background workers if enabled (skip in testing mode)
+    if config_name != 'testing' and env_config.enable_background_workers and env_config.enable_redis:
+        try:
+            logger.info("🚀 Starting background workers...")
+            start_workers(num_workers=env_config.num_workers)
+
+            def cleanup_workers():
+                logger.info("🛑 Stopping background workers...")
+                stop_workers()
+
+            atexit.register(cleanup_workers)
+            logger.info(f"✅ {env_config.num_workers} background workers started")
+        except Exception as e:
+            logger.warning(f"⚠️ Failed to start workers: {e}. Continuing without workers...")
+    elif config_name == 'testing':
+        logger.info("ℹ️ Background workers skipped in testing mode")
+    else:
+        logger.info("ℹ️ Background workers disabled (enable with ENABLE_BACKGROUND_WORKERS=true and Redis)")
+
+    # ── Routes defined on the app (not blueprints) ────────────────────────────
+
+    @flask_app.route('/')
+    def home():
+        """Serve the frontend application"""
+        try:
+            return send_from_directory(flask_app.static_folder, 'index.html')
+        except Exception as e:
+            logger.error(f"❌ Error serving index.html: {e}")
+            return jsonify({'error': 'Failed to serve frontend', 'details': str(e)}), 500
+
+    @flask_app.route('/interview/room/<token>')
+    def interview_room(token):
+        """Serve the video interview room page"""
+        try:
+            return send_from_directory(flask_app.static_folder, 'interview_room.html')
+        except Exception as e:
+            logger.error(f"❌ Error serving interview_room.html: {e}")
+            return jsonify({'error': 'Interview room unavailable'}), 500
+
+    @flask_app.route('/oauth/callback')
+    def oauth_callback():
+        """Handle Google OAuth callback - serve frontend SPA"""
+        return send_from_directory(flask_app.static_folder, 'index.html')
+
+    @flask_app.route('/<path:path>')
+    def catch_all(path):
+        """Serve frontend for all non-API routes"""
+        try:
+            if path.startswith('api/'):
+                return jsonify({'error': 'API endpoint not found'}), 404
+            file_path = os.path.join(flask_app.static_folder, path)
+            if os.path.exists(file_path) and os.path.isfile(file_path):
+                return send_from_directory(flask_app.static_folder, path)
+            else:
+                return send_from_directory(flask_app.static_folder, 'index.html')
+        except Exception as e:
+            logger.error(f"❌ Error in catch_all for path '{path}': {e}")
+            return jsonify({'error': 'Failed to serve resource', 'path': path}), 500
+
+    @flask_app.route('/api')
+    def api_info():
+        """API information"""
+        return jsonify({
+            'message': 'Smart Hiring System API',
+            'version': '2.0.0',
+            'endpoints': {
+                'auth': '/api/auth',
+                'jobs': '/api/jobs',
+                'candidates': '/api/candidates',
+                'assessments': '/api/assessments',
+                'dashboard': '/api/dashboard',
+                'video_interview': '/api/video-interview',
+            },
+            'documentation': 'See API_DOCUMENTATION.md for details'
+        })
+
+    @flask_app.route('/api/health')
+    def health():
+        """Health check endpoint"""
+        return jsonify({
+            'status': 'healthy',
+            'database': 'connected',
+            'environment': config_name
+        })
+
+    @flask_app.errorhandler(404)
+    def not_found(error):
+        return jsonify({'error': 'Endpoint not found'}), 404
+
+    @flask_app.errorhandler(500)
+    def internal_error(error):
+        return jsonify({'error': 'Internal server error'}), 500
+
+    return flask_app
+
+
+# ── Helper: default accounts ─────────────────────────────────────────────────
+
+def _create_default_accounts(db):
     """Create default test accounts if they don't exist"""
     try:
         from werkzeug.security import generate_password_hash
         from datetime import datetime
-        
+
         users_collection = db.get_collection('users')
         if users_collection is None:
             print("⚠️ Could not get users collection")
             return
-        
+
+        admin_pwd = os.getenv('DEFAULT_ADMIN_PASSWORD', 'Admin@123')
+        test_pwd = os.getenv('DEFAULT_TEST_PASSWORD', 'password123')
+
         default_accounts = [
             {
-                'email': 'admin@smarthiring.com',
-                'password': generate_password_hash('Admin@123'),
+                'email': os.getenv('DEFAULT_ADMIN_EMAIL', 'admin@smarthiring.com'),
+                'password': generate_password_hash(admin_pwd),
                 'name': 'System Admin',
                 'role': 'admin',
                 'is_active': True,
@@ -108,8 +249,8 @@ def create_default_accounts():
                 'email_verified': True
             },
             {
-                'email': 'recruiter@test.com',
-                'password': generate_password_hash('password123'),
+                'email': os.getenv('DEFAULT_RECRUITER_EMAIL', 'recruiter@test.com'),
+                'password': generate_password_hash(test_pwd),
                 'name': 'Test Recruiter',
                 'role': 'company',
                 'company_name': 'Test Company Inc.',
@@ -118,8 +259,8 @@ def create_default_accounts():
                 'email_verified': True
             },
             {
-                'email': 'candidate@test.com',
-                'password': generate_password_hash('password123'),
+                'email': os.getenv('DEFAULT_CANDIDATE_EMAIL', 'candidate@test.com'),
+                'password': generate_password_hash(test_pwd),
                 'name': 'Test Candidate',
                 'role': 'candidate',
                 'is_active': True,
@@ -127,7 +268,7 @@ def create_default_accounts():
                 'email_verified': True
             }
         ]
-        
+
         created_count = 0
         for account in default_accounts:
             existing = users_collection.find_one({'email': account['email']})
@@ -137,133 +278,20 @@ def create_default_accounts():
                 created_count += 1
             else:
                 print(f"ℹ️ Account already exists: {account['email']}")
-        
+
         if created_count > 0:
             print(f"🎉 Created {created_count} default account(s)")
         else:
             print("ℹ️ All default accounts already exist")
-            
+
     except Exception as e:
         print(f"⚠️ Could not create default accounts: {e}")
 
-# Create default accounts on startup
-create_default_accounts()
 
-# Register blueprints (API routes)
-app.register_blueprint(auth_routes.bp, url_prefix='/api/auth')
-app.register_blueprint(google_oauth_routes.bp, url_prefix='/api/auth')  # Google OAuth under /api/auth
-app.register_blueprint(job_routes.bp, url_prefix='/api/jobs')
-app.register_blueprint(candidate_routes.bp, url_prefix='/api/candidates')
-app.register_blueprint(company_routes.bp, url_prefix='/api/company')
-app.register_blueprint(email_preferences_routes.bp, url_prefix='/api/email')
-app.register_blueprint(assessment_routes.bp, url_prefix='/api/assessments')
-app.register_blueprint(audit_routes.bp, url_prefix='/api/audit')
-app.register_blueprint(dsr_routes.bp, url_prefix='/api/dsr')
-app.register_blueprint(dashboard_routes.bp, url_prefix='/api/dashboard')
-app.register_blueprint(ai_interview_routes.bp, url_prefix='/api/ai-interview')
-app.register_blueprint(admin_routes.bp, url_prefix='/api/admin')
-
-# Register V2 routes if available (LinkedIn, dynamic questions, fresher scoring)
-if V2_ROUTES_AVAILABLE:
-    app.register_blueprint(ai_interview_routes_v2.bp, url_prefix='/api/ai-interview-v2')
-    print("✅ Enhanced V2 routes registered: LinkedIn integration, dynamic questions, fresher scoring")
-
-# Initialize monitoring & observability
-initialize_monitoring(app)
-
-# Start background workers if enabled
-if env_config.enable_background_workers and env_config.enable_redis:
-    try:
-        logger.info("🚀 Starting background workers...")
-        start_workers(num_workers=env_config.num_workers)
-        
-        # Register cleanup on shutdown
-        def cleanup_workers():
-            logger.info("🛑 Stopping background workers...")
-            stop_workers()
-        
-        atexit.register(cleanup_workers)
-        logger.info(f"✅ {env_config.num_workers} background workers started")
-    except Exception as e:
-        logger.warning(f"⚠️ Failed to start workers: {e}. Continuing without workers...")
-else:
-    logger.info("ℹ️ Background workers disabled (enable with ENABLE_BACKGROUND_WORKERS=true and Redis)")
-
-# Root endpoint - serve frontend
-@app.route('/')
-def home():
-    """Serve the frontend application"""
-    try:
-        print(f"🏠 Serving index.html from: {app.static_folder}")
-        print(f"📁 Static folder exists: {os.path.exists(app.static_folder)}")
-        index_path = os.path.join(app.static_folder, 'index.html')
-        print(f"📄 Index.html exists: {os.path.exists(index_path)}")
-        return send_from_directory(app.static_folder, 'index.html')
-    except Exception as e:
-        print(f"❌ Error serving index.html: {str(e)}")
-        import traceback
-        traceback.print_exc()
-        return jsonify({'error': 'Failed to serve frontend', 'details': str(e)}), 500
-
-# Catch-all route for frontend - serve index.html for any non-API routes
-@app.route('/<path:path>')
-def catch_all(path):
-    """Serve frontend for all non-API routes"""
-    try:
-        # If it's an API request that doesn't exist, return 404 JSON
-        if path.startswith('api/'):
-            return jsonify({'error': 'API endpoint not found'}), 404
-        
-        # Try to serve the requested file
-        file_path = os.path.join(app.static_folder, path)
-        if os.path.exists(file_path) and os.path.isfile(file_path):
-            return send_from_directory(app.static_folder, path)
-        else:
-            # If file doesn't exist, serve index.html (for client-side routing)
-            return send_from_directory(app.static_folder, 'index.html')
-    except Exception as e:
-        print(f"❌ Error in catch_all for path '{path}': {str(e)}")
-        import traceback
-        traceback.print_exc()
-        return jsonify({'error': 'Failed to serve resource', 'path': path}), 500
-
-# API info endpoint
-@app.route('/api')
-def api_info():
-    """API information"""
-    return jsonify({
-        'message': 'Smart Hiring System API',
-        'version': '1.0.0',
-        'endpoints': {
-            'auth': '/api/auth',
-            'jobs': '/api/jobs',
-            'candidates': '/api/candidates',
-            'assessments': '/api/assessments',
-            'dashboard': '/api/dashboard'
-        },
-        'documentation': 'See API_DOCUMENTATION.md for details'
-    })
-
-# Health check endpoint
-@app.route('/api/health')
-def health():
-    """Health check endpoint"""
-    return jsonify({
-        'status': 'healthy',
-        'database': 'connected',
-        'environment': env
-    })
-
-# Error handlers
-@app.errorhandler(404)
-def not_found(error):
-    """Handle 404 errors"""
-    return jsonify({'error': 'Endpoint not found'}), 404
-
-@app.errorhandler(500)
-def internal_error(error):
-    """Handle 500 errors"""
-    return jsonify({'error': 'Internal server error'}), 500
+# ── Module-level app (backward compatibility) ────────────────────────────────
+# Deployment platforms, root app.py, and wsgi.py all import `app` directly.
+app = create_app()
+application = app  # WSGI / Vercel compatibility
 
 if __name__ == '__main__':
     # Print startup banner

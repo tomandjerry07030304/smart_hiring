@@ -42,7 +42,7 @@ def get_google_redirect_uri():
 
 def get_frontend_url():
     """Get Frontend URL at runtime"""
-    return os.getenv('FRONTEND_URL', 'http://localhost:3000')
+    return os.getenv('FRONTEND_URL', 'http://localhost:5000')
 
 
 def is_google_oauth_configured():
@@ -255,9 +255,27 @@ def google_callback():
             additional_claims={'role': role, 'auth_provider': 'google'}
         )
         
-        # Redirect to frontend with token
-        # In production, you might want to use a more secure method (e.g., setting HttpOnly cookie)
-        redirect_url = f"{get_frontend_url()}/oauth/callback?token={jwt_token}&user_id={user_id}&role={role}&is_new={is_new_user}"
+        # SECURITY FIX: Use a short-lived auth code instead of sending JWT in URL
+        # Store jwt_token in a temporary auth code in the database (30 second TTL)
+        auth_code = secrets.token_urlsafe(48)
+        db['oauth_auth_codes'].insert_one({
+            'code': auth_code,
+            'jwt_token': jwt_token,
+            'user_id': user_id,
+            'role': role,
+            'is_new': is_new_user,
+            'created_at': datetime.utcnow(),
+            'expires_at': datetime.utcnow() + timedelta(seconds=60),
+            'used': False
+        })
+        # Create TTL index on first run (MongoDB will auto-expire documents)
+        try:
+            db['oauth_auth_codes'].create_index('expires_at', expireAfterSeconds=0)
+        except Exception:
+            pass  # Index already exists
+        
+        # Redirect to frontend with only the short-lived auth code (not the JWT)
+        redirect_url = f"{get_frontend_url()}/oauth/callback?code={auth_code}&is_new={is_new_user}"
         
         logger.info(f"🎉 Google OAuth successful for {email}, redirecting to frontend")
         return redirect(redirect_url)
@@ -270,6 +288,61 @@ def google_callback():
         import traceback
         traceback.print_exc()
         return redirect(f"{get_frontend_url()}/login?error=server_error")
+
+
+@bp.route('/google/exchange', methods=['POST'])
+def exchange_auth_code():
+    """
+    Exchange a short-lived auth code for a JWT token.
+    This is the secure second step of the OAuth flow.
+    The frontend sends the auth code received from the redirect,
+    and receives the JWT token in the response body (not in URL).
+    """
+    data = request.get_json()
+    code = data.get('code')
+    
+    if not code:
+        return jsonify({'error': 'Auth code not provided'}), 400
+    
+    try:
+        db = get_db()
+        # Find and consume the auth code (one-time use)
+        auth_record = db['oauth_auth_codes'].find_one_and_update(
+            {
+                'code': code,
+                'used': False,
+                'expires_at': {'$gt': datetime.utcnow()}
+            },
+            {'$set': {'used': True, 'used_at': datetime.utcnow()}}
+        )
+        
+        if not auth_record:
+            return jsonify({'error': 'Invalid or expired auth code'}), 401
+        
+        # Fetch the full user object so the frontend has displayable data
+        from bson import ObjectId
+        user_doc = db['users'].find_one({'_id': ObjectId(auth_record['user_id'])})
+        user_info = {
+            'id': auth_record['user_id'],
+            'email': user_doc.get('email', '') if user_doc else '',
+            'full_name': user_doc.get('full_name', '') if user_doc else '',
+            'role': auth_record['role'],
+            'profile_picture': user_doc.get('profile_picture', '') if user_doc else '',
+            'auth_provider': 'google'
+        }
+        
+        return jsonify({
+            'message': 'Authentication successful',
+            'access_token': auth_record['jwt_token'],
+            'user': user_info,
+            'user_id': auth_record['user_id'],
+            'role': auth_record['role'],
+            'is_new_user': auth_record.get('is_new', False)
+        }), 200
+        
+    except Exception as e:
+        logger.error(f"Auth code exchange error: {e}")
+        return jsonify({'error': 'Authentication failed'}), 500
 
 
 @bp.route('/google/token', methods=['POST'])

@@ -1,6 +1,6 @@
 // Smart Hiring System - Main Application
 // Auto-detect API URL based on environment
-const API_URL = window.location.hostname === 'localhost' 
+const API_URL = window.location.hostname === 'localhost'
     ? 'http://localhost:5000/api'
     : window.location.origin + '/api';  // Use same domain for production
 let currentUser = null;
@@ -12,7 +12,7 @@ function togglePasswordVisibility(inputId, button) {
     const input = document.getElementById(inputId);
     const eyeIcon = button.querySelector('.eye-icon');
     const eyeOffIcon = button.querySelector('.eye-off-icon');
-    
+
     if (input.type === 'password') {
         input.type = 'text';
         eyeIcon.style.display = 'none';
@@ -36,17 +36,17 @@ function showNotification(message, type = 'info', duration = 5000) {
     const container = document.getElementById('notification-container');
     const notification = document.createElement('div');
     notification.className = `notification ${type}`;
-    
+
     const icons = {
         success: '✓',
         error: '✕',
         info: 'ℹ',
         warning: '⚠'
     };
-    
+
     // Sanitize message to prevent XSS
     const safeMessage = escapeHtml(message);
-    
+
     notification.innerHTML = `
         <span class="notification-icon">${icons[type] || icons.info}</span>
         <div class="notification-content">
@@ -54,9 +54,9 @@ function showNotification(message, type = 'info', duration = 5000) {
         </div>
         <button class="notification-close" onclick="this.parentElement.remove()">×</button>
     `;
-    
+
     container.appendChild(notification);
-    
+
     // Auto remove after duration
     setTimeout(() => {
         notification.style.animation = 'slideOut 0.3s ease-in';
@@ -65,13 +65,76 @@ function showNotification(message, type = 'info', duration = 5000) {
 }
 
 // Initialize app
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
     initializeApp();
+    // Check if this is a Google OAuth callback (redirect from backend with auth code)
+    const urlParams = new URLSearchParams(window.location.search);
+    const authCode = urlParams.get('code');
+    if (authCode && (window.location.pathname === '/oauth/callback' || window.location.pathname.includes('oauth'))) {
+        await handleGoogleOAuthCallback(authCode, urlParams.get('is_new') === 'true');
+        return; // skip normal checkAuth – the callback handler will redirect
+    }
     checkAuth();
 });
 
+// Handle Google OAuth callback – exchange the short-lived auth code for a JWT
+async function handleGoogleOAuthCallback(code, isNewUser) {
+    try {
+        const response = await fetch(`${API_URL}/auth/google/exchange`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ code })
+        });
+
+        if (!response.ok) {
+            const err = await response.json().catch(() => ({}));
+            throw new Error(err.error || 'OAuth exchange failed');
+        }
+
+        const data = await response.json();
+
+        // Store auth data exactly like normal login
+        authToken = data.access_token;
+        currentUser = data.user;
+        currentRole = data.user.role || 'candidate';
+
+        localStorage.setItem('candidate_token', authToken);
+        localStorage.setItem('currentRole', currentRole);
+        localStorage.setItem('currentUser', JSON.stringify(currentUser));
+
+        // Clean up URL (remove auth code from address bar)
+        window.history.replaceState({}, document.title, '/');
+
+        showNotification(
+            isNewUser ? 'Welcome! Your account has been created via Google.' : 'Signed in with Google successfully!',
+            'success'
+        );
+
+        showDashboard(currentRole);
+    } catch (error) {
+        console.error('Google OAuth callback error:', error);
+        // Clean up URL
+        window.history.replaceState({}, document.title, '/');
+        showNotification('Google Sign-In failed: ' + error.message + '. Please try again.', 'error');
+        showRoleSelection();
+    }
+}
+
 function checkAuth() {
-    authToken = localStorage.getItem('authToken');
+    // Try to restore session from role-specific tokens first
+    currentRole = localStorage.getItem('currentRole');
+
+    // Get the appropriate token based on stored role
+    if (currentRole === 'candidate') {
+        authToken = localStorage.getItem('candidate_token');
+    } else if (currentRole === 'recruiter' || currentRole === 'company') {
+        authToken = localStorage.getItem('recruiter_token');
+    } else if (currentRole === 'admin') {
+        authToken = localStorage.getItem('admin_token');
+    } else {
+        authToken = null;
+    }
+
     // Safe JSON parse with error handling
     try {
         currentUser = JSON.parse(localStorage.getItem('currentUser') || 'null');
@@ -79,8 +142,7 @@ function checkAuth() {
         console.warn('Failed to parse currentUser from localStorage:', e);
         currentUser = null;
     }
-    currentRole = localStorage.getItem('currentRole');
-    
+
     if (authToken && currentUser && currentRole) {
         // Validate that the stored role matches the user's actual role
         if (currentUser.role && currentUser.role !== currentRole) {
@@ -153,15 +215,15 @@ function initializeApp() {
                     
                     <h1 id="loginTitle">Login</h1>
                     <p class="subtitle" id="loginSubtitle"></p>
-                    <form id="loginForm" onsubmit="handleLogin(event)">
+                    <form id="loginForm" onsubmit="handleLogin(event)" autocomplete="off">
                         <div class="form-group">
                             <label>Email</label>
-                            <input type="email" id="loginEmail" required>
+                            <input type="email" id="loginEmail" name="portal_email" autocomplete="off" required placeholder="Enter your email">
                         </div>
                         <div class="form-group">
                             <label>Password</label>
                             <div class="password-input-wrapper">
-                                <input type="password" id="loginPassword" required>
+                                <input type="password" id="loginPassword" name="portal_password" autocomplete="new-password" required placeholder="Enter your password">
                                 <button type="button" class="password-toggle" onclick="togglePasswordVisibility('loginPassword', this)" aria-label="Toggle password visibility">
                                     <svg class="eye-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                         <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
@@ -343,19 +405,22 @@ function selectRole(role) {
     };
     document.getElementById('loginTitle').textContent = titles[role];
     document.getElementById('loginSubtitle').textContent = subtitles[role];
-    
+
     if (role === 'admin') {
         document.getElementById('registerPrompt').style.display = 'none';
     } else {
         document.getElementById('registerPrompt').style.display = 'block';
     }
-    
+
     // Show Google Sign-In only for candidates
     const googleSection = document.getElementById('googleSignInSection');
     if (googleSection) {
         googleSection.style.display = role === 'candidate' ? 'block' : 'none';
     }
-    
+
+    // Clear any stale input values when switching portals (prevent autofill leakage)
+    clearLoginInputs();
+
     showPage('loginPage');
 }
 
@@ -372,15 +437,15 @@ function showRegister() {
         company: 'Register your company to start hiring',
         candidate: 'Create your profile to find jobs'
     };
-    
+
     document.getElementById('registerTitle').textContent = titles[currentRole];
     document.getElementById('registerSubtitle').textContent = subtitles[currentRole];
-    
+
     if (currentRole === 'company') {
         document.querySelector('.company-only').style.display = 'block';
         document.getElementById('regCompany').required = true;
     }
-    
+
     showPage('registerPage');
 }
 
@@ -455,22 +520,22 @@ async function handleLogin(e) {
     const btnText = btn.querySelector('.btn-text');
     const spinner = btn.querySelector('.spinner');
     const errorDiv = e.target.querySelector('.error-message');
-    
+
     btn.disabled = true;
     btnText.style.display = 'none';
     spinner.classList.add('show');
     errorDiv.classList.remove('show');
-    
+
     try {
         const email = document.getElementById('loginEmail').value;
         const password = document.getElementById('loginPassword').value;
-        
+
         const response = await fetch(`${API_URL}/auth/login`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ email, password, role: currentRole })
         });
-        
+
         // Check if response is OK before trying to parse JSON
         if (!response.ok) {
             // Try to parse error message, but handle non-JSON responses
@@ -488,24 +553,32 @@ async function handleLogin(e) {
             }
             throw new Error(errorMessage);
         }
-        
+
         const data = await response.json();
         authToken = data.access_token;
         currentUser = data.user;
-        
+
         // Use the actual role from the database, not the selected portal
         const actualRole = data.user.role;
-        
+
         // Normalize roles: 'recruiter' and 'company' are interchangeable
         const normalizedActualRole = actualRole === 'recruiter' ? 'company' : actualRole;
         const normalizedCurrentRole = currentRole === 'recruiter' ? 'company' : currentRole;
-        
+
         // Validate role matches selected portal (optional strict check)
         if (normalizedCurrentRole !== 'admin' && normalizedActualRole !== normalizedCurrentRole && normalizedActualRole !== 'admin') {
             throw new Error(`This account is registered as ${actualRole}. Please use the ${actualRole} portal.`);
         }
-        
-        localStorage.setItem('authToken', authToken);
+
+        // Store role-specific token (prevents session bleeding between portals)
+        if (actualRole === 'candidate') {
+            localStorage.setItem('candidate_token', authToken);
+        } else if (actualRole === 'recruiter' || actualRole === 'company') {
+            localStorage.setItem('recruiter_token', authToken);
+        } else if (actualRole === 'admin') {
+            localStorage.setItem('admin_token', authToken);
+        }
+
         localStorage.setItem('currentUser', JSON.stringify(currentUser));
         localStorage.setItem('currentRole', actualRole);  // Save actual role
         showDashboard(actualRole);
@@ -527,26 +600,26 @@ async function handleRegister(e) {
     const spinner = btn.querySelector('.spinner');
     const errorDiv = e.target.querySelector('.error-message');
     const successDiv = e.target.querySelector('.success-message');
-    
+
     const password = document.getElementById('regPassword').value;
     const confirm = document.getElementById('regConfirm').value;
-    
+
     if (password !== confirm) {
         errorDiv.textContent = 'Passwords do not match';
         errorDiv.classList.add('show');
         return;
     }
-    
+
     btn.disabled = true;
     btnText.style.display = 'none';
     spinner.classList.add('show');
     errorDiv.classList.remove('show');
     successDiv.classList.remove('show');
-    
+
     try {
         const firstName = document.getElementById('regFirstName').value;
         const lastName = document.getElementById('regLastName').value;
-        
+
         const userData = {
             full_name: `${firstName} ${lastName}`,
             email: document.getElementById('regEmail').value,
@@ -554,19 +627,19 @@ async function handleRegister(e) {
             password: password,
             role: currentRole === 'company' ? 'recruiter' : currentRole
         };
-        
+
         if (currentRole === 'company') {
             userData.company_name = document.getElementById('regCompany').value;
         }
-        
+
         const response = await fetch(`${API_URL}/auth/register`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(userData)
         });
-        
+
         const data = await response.json();
-        
+
         if (response.ok) {
             successDiv.textContent = 'Registration successful! Redirecting to login...';
             successDiv.classList.add('show');
@@ -589,23 +662,41 @@ function logout() {
     authToken = null;
     currentUser = null;
     currentRole = null;
-    localStorage.removeItem('authToken');
+
+    // Clear ALL role-specific tokens (complete session isolation)
+    localStorage.removeItem('candidate_token');
+    localStorage.removeItem('recruiter_token');
+    localStorage.removeItem('admin_token');
+    localStorage.removeItem('authToken');  // Legacy cleanup
     localStorage.removeItem('currentUser');
     localStorage.removeItem('currentRole');
+
+    // Clear login inputs to prevent autofill persistence
+    clearLoginInputs();
+
     showRoleSelection();
+}
+
+// Clear login form inputs to prevent autofill leakage between portals
+function clearLoginInputs() {
+    const emailInput = document.getElementById('loginEmail');
+    const passwordInput = document.getElementById('loginPassword');
+
+    if (emailInput) emailInput.value = '';
+    if (passwordInput) passwordInput.value = '';
 }
 
 function showDashboard(role) {
     // Ensure role matches the logged-in user's role
     const userRole = currentUser?.role || role;
-    
+
     // Redirect if trying to access wrong portal
     if (userRole !== role) {
         console.warn(`Access denied: User role is ${userRole}, attempting to access ${role} portal`);
         role = userRole;
     }
-    
-    switch(role) {
+
+    switch (role) {
         case 'admin':
             loadAdminDashboard();
             break;

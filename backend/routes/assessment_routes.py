@@ -11,6 +11,7 @@ import random
 
 from backend.models.database import get_db
 from backend.models.assessment import Question, Quiz, QuizAttempt
+from backend.security.rbac import require_permission, Permissions
 
 bp = Blueprint('assessments', __name__)
 
@@ -27,6 +28,7 @@ def get_user_info(current_user):
 
 @bp.route('/questions', methods=['POST'])
 @jwt_required()
+@require_permission(Permissions.CREATE_ASSESSMENT)
 def create_question():
     """Create a new question (recruiter/admin only)"""
     try:
@@ -60,6 +62,7 @@ def create_question():
 
 @bp.route('/questions', methods=['GET'])
 @jwt_required()
+@require_permission(Permissions.VIEW_ASSESSMENT)
 def get_questions():
     """Get all questions with filtering"""
     try:
@@ -87,6 +90,7 @@ def get_questions():
 
 @bp.route('/questions/<question_id>', methods=['DELETE'])
 @jwt_required()
+@require_permission(Permissions.EDIT_ASSESSMENT)
 def delete_question(question_id):
     """Soft delete a question"""
     try:
@@ -114,6 +118,7 @@ def delete_question(question_id):
 
 @bp.route('/quizzes', methods=['POST'])
 @jwt_required()
+@require_permission(Permissions.CREATE_ASSESSMENT)
 def create_quiz():
     """Create a new quiz"""
     try:
@@ -150,6 +155,7 @@ def create_quiz():
 
 @bp.route('/quizzes', methods=['GET'])
 @jwt_required()
+@require_permission(Permissions.VIEW_ASSESSMENT)
 def get_quizzes():
     """Get quizzes"""
     try:
@@ -190,10 +196,45 @@ def get_quizzes():
         traceback.print_exc()
         return jsonify({'error': str(e)}), 500
 
+# ==================== CANDIDATE ATTEMPTS ====================
+
+@bp.route('/my-attempts', methods=['GET'])
+@jwt_required()
+@require_permission(Permissions.VIEW_ASSESSMENT)
+def get_my_attempts():
+    """Get all quiz attempts for the current candidate"""
+    try:
+        user_id, role = get_user_info(get_jwt_identity())
+        if role != 'candidate':
+            return jsonify({'error': 'Only candidates can view their attempts'}), 403
+
+        db = get_db()
+        attempts = list(db['quiz_attempts'].find({'candidate_id': user_id}).sort('started_at', -1))
+
+        for attempt in attempts:
+            attempt['_id'] = str(attempt['_id'])
+            if 'started_at' in attempt and hasattr(attempt['started_at'], 'isoformat'):
+                attempt['started_at'] = attempt['started_at'].isoformat()
+            if attempt.get('completed_at') and hasattr(attempt['completed_at'], 'isoformat'):
+                attempt['completed_at'] = attempt['completed_at'].isoformat()
+
+            # Enrich with quiz title
+            quiz = db['quizzes'].find_one({'_id': ObjectId(attempt['quiz_id'])}) if attempt.get('quiz_id') else None
+            if quiz:
+                attempt['quiz_title'] = quiz.get('title', 'Unknown Quiz')
+
+        return jsonify({'attempts': attempts, 'total': len(attempts)}), 200
+    except Exception as e:
+        print(f"Error in get_my_attempts: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': str(e)}), 500
+
 # ==================== QUIZ TAKING ====================
 
 @bp.route('/quizzes/<quiz_id>/start', methods=['POST'])
 @jwt_required()
+@require_permission(Permissions.VIEW_ASSESSMENT)
 def start_quiz(quiz_id):
     """Start a quiz attempt"""
     try:
@@ -266,6 +307,7 @@ def start_quiz(quiz_id):
 
 @bp.route('/attempts/<attempt_id>/submit', methods=['POST'])
 @jwt_required()
+@require_permission(Permissions.VIEW_ASSESSMENT)
 def submit_quiz(attempt_id):
     """Submit quiz answers"""
     try:
@@ -280,7 +322,7 @@ def submit_quiz(attempt_id):
         if not attempt or attempt['candidate_id'] != user_id:
             return jsonify({'error': 'Unauthorized'}), 403
         
-        quiz = db['quiz_attempts'].find_one({'_id': ObjectId(attempt['quiz_id'])})
+        quiz = db['quizzes'].find_one({'_id': ObjectId(attempt['quiz_id'])})
         
         # Get questions and grade
         question_ids = [ObjectId(qid) for qid in quiz['questions']]
@@ -342,6 +384,7 @@ def submit_quiz(attempt_id):
 
 @bp.route('/attempts/<attempt_id>', methods=['GET'])
 @jwt_required()
+@require_permission(Permissions.VIEW_ASSESSMENT)
 def get_attempt_results(attempt_id):
     """Get quiz attempt results"""
     try:
@@ -363,6 +406,7 @@ def get_attempt_results(attempt_id):
 
 @bp.route('/quizzes/<quiz_id>/analytics', methods=['GET'])
 @jwt_required()
+@require_permission(Permissions.VIEW_COMPANY_ANALYTICS)
 def get_quiz_analytics(quiz_id):
     """Get quiz analytics (recruiter/admin only)"""
     try:

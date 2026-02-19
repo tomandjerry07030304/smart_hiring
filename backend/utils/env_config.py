@@ -33,14 +33,15 @@ class EnvironmentConfig:
         if not encryption_key and self.env == 'production':
             issues.append("⚠️ ENCRYPTION_KEY should be set for PII encryption in production")
         
-        # Check MongoDB URI
+        # Check MongoDB URI (only warn in production - localhost is fine for dev)
         mongodb_uri = os.getenv('MONGODB_URI')
-        if not mongodb_uri:
-            issues.append("⚠️ MONGODB_URI is not set")
+        if not mongodb_uri and self.env == 'production':
+            issues.append("⚠️ MONGODB_URI must be set in production")
         
         # Check Redis for production
+        redis_enabled = os.getenv('REDIS_ENABLED', 'true').lower() == 'true'
         redis_url = os.getenv('REDIS_URL')
-        if not redis_url and self.env == 'production':
+        if not redis_url and redis_enabled and self.env == 'production':
             issues.append("⚠️ REDIS_URL recommended for production (queuing & caching)")
         
         # Log issues
@@ -92,8 +93,8 @@ class EnvironmentConfig:
     
     @property
     def db_name(self) -> str:
-        """Get database name"""
-        return os.getenv('DB_NAME', 'smart_hiring')
+        """Get database name - checks both MONGODB_DATABASE and DB_NAME env vars"""
+        return os.getenv('MONGODB_DATABASE', os.getenv('DB_NAME', 'smart_hiring_db'))
     
     # Redis settings
     @property

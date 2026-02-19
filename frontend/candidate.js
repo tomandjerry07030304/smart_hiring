@@ -14,11 +14,16 @@ function loadCandidateDashboard() {
             <div class="navbar-menu">
                 <button class="nav-link active" onclick="switchCandidateTab('browse', event)">🔍 Browse Jobs</button>
                 <button class="nav-link" onclick="switchCandidateTab('applications', event)">📋 My Applications</button>
+                <button class="nav-link" onclick="switchCandidateTab('interviews', event)">🎥 Interviews</button>
                 <button class="nav-link" onclick="switchCandidateTab('assessments', event)">📝 Assessments</button>
                 <button class="nav-link" onclick="switchCandidateTab('analytics', event)">📊 My Analytics</button>
                 <button class="nav-link" onclick="switchCandidateTab('profile', event)">👤 Profile</button>
             </div>
             <div class="navbar-actions">
+                <button class="theme-toggle-navbar" aria-label="Toggle Dark Mode" onclick="toggleTheme()">
+                    <span class="theme-icon sun-icon">☀️</span>
+                    <span class="theme-icon moon-icon" style="display:none;">🌙</span>
+                </button>
                 <span class="user-info">${currentUser.email}</span>
                 <button class="btn btn-secondary" onclick="candidateLogout()">Logout</button>
             </div>
@@ -26,12 +31,15 @@ function loadCandidateDashboard() {
         <div class="main-content">
             <div id="candidateBrowse" class="tab-content active"></div>
             <div id="candidateApplications" class="tab-content"></div>
+            <div id="candidateInterviews" class="tab-content"></div>
             <div id="candidateAssessments" class="tab-content"></div>
             <div id="candidateAnalytics" class="tab-content"></div>
             <div id="candidateProfile" class="tab-content"></div>
         </div>
     `;
     showPage('candidateDashboard');
+    // Update theme icon state for the newly rendered toggle
+    if (typeof updateThemeIcon === 'function') updateThemeIcon(document.body.getAttribute('data-theme') || 'light');
     loadCandidateBrowse();
 }
 
@@ -42,28 +50,29 @@ function switchCandidateTab(tab, event) {
         t.classList.remove('active');
         t.style.display = 'none';
     });
-    
+
     // Add active state to clicked nav link
     if (event && event.target) {
         event.target.classList.add('active');
     }
-    
+
     // Show the selected tab content
     const tabContent = document.getElementById(`candidate${tab.charAt(0).toUpperCase() + tab.slice(1)}`);
     if (tabContent) {
         tabContent.classList.add('active');
         tabContent.style.display = 'block';
     }
-    
+
     // Load content based on tab with smooth transition
-    switch(tab) {
+    switch (tab) {
         case 'browse': loadCandidateBrowse(); break;
         case 'applications': loadCandidateApplications(); break;
+        case 'interviews': loadCandidateInterviews(); break;
         case 'assessments': loadCandidateAssessments(); break;
         case 'analytics': loadCandidateAnalytics(); break;
         case 'profile': loadCandidateProfile(); break;
     }
-    
+
     // Scroll to top smoothly
     window.scrollTo({ top: 0, behavior: 'smooth' });
 }
@@ -71,26 +80,26 @@ function switchCandidateTab(tab, event) {
 async function loadCandidateBrowse() {
     const container = document.getElementById('candidateBrowse');
     container.innerHTML = '<div class="loading">Loading available jobs...</div>';
-    
+
     try {
         const response = await fetch(`${API_URL}/jobs/list?status=open`, {
             headers: { 'Authorization': `Bearer ${authToken}` }
         });
-        
+
         if (!response.ok) {
             throw new Error('Failed to load jobs');
         }
-        
+
         const data = await response.json();
         const jobs = data.jobs || [];
-        
+
         console.log(`Loaded ${jobs.length} jobs for candidates`);
-        
+
         if (jobs.length === 0) {
             container.innerHTML = '<div class="empty-state">No jobs available at the moment. Check back soon!</div>';
             return;
         }
-        
+
         container.innerHTML = `
             <div class="content-header">
                 <h2>🔍 Browse Available Jobs</h2>
@@ -100,22 +109,22 @@ async function loadCandidateBrowse() {
             </div>
             <div class="job-grid" id="jobsGrid">
                 ${jobs.map(job => `
-                    <div class="job-card" data-title="${job.title.toLowerCase()}" data-skills="${(job.required_skills || []).join(' ').toLowerCase()}" data-location="${(job.location || '').toLowerCase()}">
+                    <div class="job-card" data-title="${escapeHtml(job.title.toLowerCase())}" data-skills="${escapeHtml((job.required_skills || []).join(' ').toLowerCase())}" data-location="${escapeHtml((job.location || '').toLowerCase())}">
                         <div class="job-header">
                             <div>
-                                <h3 class="job-title">${job.title}</h3>
-                                <p class="job-company">${job.company_name || 'Company'}</p>
+                                <h3 class="job-title">${escapeHtml(job.title)}</h3>
+                                <p class="job-company">${escapeHtml(job.company_name || 'Company')}</p>
                             </div>
                             <span class="badge badge-success">Open</span>
                         </div>
-                        <p class="job-description" style="white-space: pre-line;">${job.description.substring(0, 200)}...</p>
+                        <p class="job-description" style="white-space: pre-line;">${escapeHtml((job.description || '').substring(0, 200))}...</p>
                         <div class="job-meta">
-                            <span>📍 ${job.location || 'Remote'}</span>
-                            <span>💼 ${job.job_type || 'Full-time'}</span>
+                            <span>📍 ${escapeHtml(job.location || 'Remote')}</span>
+                            <span>💼 ${escapeHtml(job.job_type || 'Full-time')}</span>
                             <span>📅 Posted ${job.posted_date ? new Date(job.posted_date).toLocaleDateString() : 'Recently'}</span>
                         </div>
                         <div class="job-tags">
-                            ${(job.required_skills || []).slice(0, 5).map(s => `<span class="tag">${s}</span>`).join('')}
+                            ${(job.required_skills || []).slice(0, 5).map(s => `<span class="tag">${escapeHtml(s)}</span>`).join('')}
                         </div>
                         <div style="display: flex; gap: 10px;">
                             <button class="btn btn-secondary" onclick="viewJobDetails('${job._id}')">View Details</button>
@@ -139,12 +148,12 @@ async function loadCandidateBrowse() {
 function filterJobs() {
     const searchTerm = document.getElementById('jobSearch').value.toLowerCase();
     const cards = document.querySelectorAll('#jobsGrid .job-card');
-    
+
     cards.forEach(card => {
         const title = card.dataset.title || '';
         const skills = card.dataset.skills || '';
         const location = card.dataset.location || '';
-        
+
         if (title.includes(searchTerm) || skills.includes(searchTerm) || location.includes(searchTerm)) {
             card.style.display = '';
         } else {
@@ -158,9 +167,9 @@ async function viewJobDetails(jobId) {
         const response = await fetch(`${API_URL}/jobs/${jobId}`, {
             headers: { 'Authorization': `Bearer ${authToken}` }
         });
-        
+
         const job = await response.json();
-        
+
         const modal = document.createElement('div');
         modal.className = 'modal show';
         modal.innerHTML = `
@@ -205,9 +214,9 @@ async function viewJobDetails(jobId) {
                             <span>Requirements</span>
                         </div>
                         <ul style="margin: 0; padding-left: 24px; color: #475569; line-height: 2;">
-                            ${Array.isArray(job.requirements) 
-                                ? job.requirements.map(r => `<li style="margin-bottom: 10px;">${r}</li>`).join('') 
-                                : (job.requirements || '').split(/\n|\.(?=\s[A-Z])/).filter(r => r.trim() && !r.match(/^Requirements?:?\s*$/i)).map(r => `<li style="margin-bottom: 10px;">${r.trim()}</li>`).join('')}
+                            ${Array.isArray(job.requirements)
+                ? job.requirements.map(r => `<li style="margin-bottom: 10px;">${r}</li>`).join('')
+                : (job.requirements || '').split(/\n|\.(?=\s[A-Z])/).filter(r => r.trim() && !r.match(/^Requirements?:?\s*$/i)).map(r => `<li style="margin-bottom: 10px;">${r.trim()}</li>`).join('')}
                         </ul>
                     </div>
                     
@@ -236,7 +245,7 @@ async function viewJobDetails(jobId) {
 
 async function applyToJob(jobId) {
     if (!confirm('Apply to this job? Make sure you have completed required assessments and updated your profile.')) return;
-    
+
     try {
         const response = await fetch(`${API_URL}/candidates/apply/${jobId}`, {
             method: 'POST',
@@ -246,7 +255,7 @@ async function applyToJob(jobId) {
             },
             body: JSON.stringify({})
         });
-        
+
         // Check content type before parsing as JSON
         const contentType = response.headers.get('content-type');
         if (!contentType || !contentType.includes('application/json')) {
@@ -254,9 +263,9 @@ async function applyToJob(jobId) {
             console.error('Server response:', text.substring(0, 200));
             throw new Error('Server returned invalid response. Please contact support.');
         }
-        
+
         const data = await response.json();
-        
+
         if (response.ok) {
             alert('✓ Application submitted successfully! Track it in "My Applications".');
             // Refresh the applications list
@@ -275,15 +284,15 @@ async function applyToJob(jobId) {
 async function loadCandidateApplications() {
     const container = document.getElementById('candidateApplications');
     container.innerHTML = '<div class="loading">Loading applications...</div>';
-    
+
     try {
         const response = await fetch(`${API_URL}/candidates/applications`, {
             headers: { 'Authorization': `Bearer ${authToken}` }
         });
-        
+
         const data = await response.json();
         const applications = data.applications || [];
-        
+
         if (applications.length === 0) {
             container.innerHTML = `
                 <div class="content-header">
@@ -295,7 +304,7 @@ async function loadCandidateApplications() {
             `;
             return;
         }
-        
+
         container.innerHTML = `
             <div class="content-header">
                 <h2>📋 My Applications</h2>
@@ -305,14 +314,14 @@ async function loadCandidateApplications() {
                     <div class="job-card">
                         <div class="job-header">
                             <div>
-                                <h3 class="job-title">${app.job_title}</h3>
-                                <p class="job-company">${app.company_name}</p>
+                                <h3 class="job-title">${escapeHtml(app.job_title)}</h3>
+                                <p class="job-company">${escapeHtml(app.company_name)}</p>
                             </div>
-                            <span class="badge badge-${getStatusColor(app.status)}">${app.status}</span>
+                            <span class="badge badge-${getStatusColor(app.status)}">${escapeHtml(app.status)}</span>
                         </div>
                         <div class="job-meta">
                             <span>📅 Applied: ${new Date(app.applied_at).toLocaleDateString()}</span>
-                            <span>📍 ${app.location}</span>
+                            <span>📍 ${escapeHtml(app.location)}</span>
                         </div>
                         ${app.interview_scheduled ? `
                             <div class="alert alert-info">
@@ -340,36 +349,167 @@ function getStatusColor(status) {
     return colors[status] || 'secondary';
 }
 
+async function loadCandidateInterviews() {
+    const container = document.getElementById('candidateInterviews');
+    container.innerHTML = '<div class="loading">Loading interviews...</div>';
+
+    try {
+        // Fetch video interview sessions for this candidate
+        const userId = currentUser._id || currentUser.id;
+        const response = await fetch(`${API_URL}/video-interview/candidate/${userId}`, {
+            headers: { 'Authorization': `Bearer ${authToken}` }
+        });
+
+        let sessions = [];
+        if (response.ok) {
+            const data = await response.json();
+            sessions = data.sessions || [];
+        }
+
+        // Also fetch from applications that have interview_scheduled
+        const appResponse = await fetch(`${API_URL}/candidates/applications`, {
+            headers: { 'Authorization': `Bearer ${authToken}` }
+        });
+        let interviewApps = [];
+        if (appResponse.ok) {
+            const appData = await appResponse.json();
+            interviewApps = (appData.applications || []).filter(app => 
+                app.status === 'interviewed' || app.interview_scheduled || app.meeting_link
+            );
+        }
+
+        if (sessions.length === 0 && interviewApps.length === 0) {
+            container.innerHTML = `
+                <div class="content-header">
+                    <h2>🎥 My Interviews</h2>
+                </div>
+                <div class="empty-state">
+                    No interviews scheduled yet. When a recruiter schedules an interview, it will appear here.
+                </div>
+            `;
+            return;
+        }
+
+        let interviewCards = '';
+
+        // Cards from video interview sessions
+        sessions.forEach(s => {
+            const status = s.status || 'scheduled';
+            const statusColors = {
+                'scheduled': '#4F46E5',
+                'waiting': '#F59E0B',
+                'in_progress': '#10B981',
+                'completed': '#6B7280',
+                'expired': '#EF4444',
+                'cancelled': '#EF4444'
+            };
+            const statusColor = statusColors[status] || '#6B7280';
+            const isJoinable = ['scheduled', 'waiting'].includes(status);
+            const meetingLink = s.meeting_link || '';
+            const scheduledTime = s.scheduled_time_display || (s.scheduled_time_utc ? new Date(s.scheduled_time_utc).toLocaleString() : 'ASAP');
+
+            interviewCards += `
+                <div class="job-card" style="border-left: 4px solid ${statusColor};">
+                    <div class="job-header">
+                        <div>
+                            <h3 class="job-title">🎥 Video Interview</h3>
+                            <p class="job-company">Type: ${escapeHtml(s.interview_type || 'AI Automated')}</p>
+                        </div>
+                        <span class="badge" style="background: ${statusColor}; color: white; padding: 4px 12px; border-radius: 12px; font-size: 12px;">
+                            ${escapeHtml(status.replace('_', ' ').toUpperCase())}
+                        </span>
+                    </div>
+                    <div class="job-meta">
+                        <span>📅 ${escapeHtml(scheduledTime)}</span>
+                        <span>⏱ ${s.duration_minutes || 90} min</span>
+                    </div>
+                    ${isJoinable ? `
+                        <div style="margin-top: 12px;">
+                            <a href="${escapeHtml(meetingLink)}" target="_blank" 
+                               class="btn btn-primary" style="display: inline-block; text-decoration: none; padding: 10px 24px; font-weight: 600;">
+                                🚀 Join Interview
+                            </a>
+                        </div>
+                    ` : ''}
+                    ${status === 'completed' ? `
+                        <div style="margin-top: 8px; color: #6B7280; font-size: 13px;">
+                            ✅ Interview completed ${s.completed_at ? 'on ' + new Date(s.completed_at).toLocaleString() : ''}
+                        </div>
+                    ` : ''}
+                </div>
+            `;
+        });
+
+        // Cards from applications with meeting links (fallback)
+        interviewApps.forEach(app => {
+            if (app.meeting_link && !sessions.some(s => s.meeting_link === app.meeting_link)) {
+                interviewCards += `
+                    <div class="job-card" style="border-left: 4px solid #4F46E5;">
+                        <div class="job-header">
+                            <div>
+                                <h3 class="job-title">${escapeHtml(app.job_title || 'Interview')}</h3>
+                                <p class="job-company">${escapeHtml(app.company_name || '')}</p>
+                            </div>
+                            <span class="badge badge-primary">INTERVIEW</span>
+                        </div>
+                        <div class="job-meta">
+                            ${app.interview_date ? `<span>📅 ${new Date(app.interview_date).toLocaleString()}</span>` : ''}
+                        </div>
+                        <div style="margin-top: 12px;">
+                            <a href="${escapeHtml(app.meeting_link)}" target="_blank"
+                               class="btn btn-primary" style="display: inline-block; text-decoration: none; padding: 10px 24px; font-weight: 600;">
+                                🚀 Join Interview
+                            </a>
+                        </div>
+                    </div>
+                `;
+            }
+        });
+
+        container.innerHTML = `
+            <div class="content-header">
+                <h2>🎥 My Interviews</h2>
+            </div>
+            <div class="job-grid">
+                ${interviewCards}
+            </div>
+        `;
+    } catch (error) {
+        console.error('Failed to load interviews:', error);
+        container.innerHTML = '<div class="empty-state">Failed to load interviews</div>';
+    }
+}
+
 async function loadCandidateAssessments() {
     const container = document.getElementById('candidateAssessments');
     container.innerHTML = '<div class="loading">Loading assessments...</div>';
-    
+
     try {
         const response = await fetch(`${API_URL}/assessments/quizzes`, {
             headers: { 'Authorization': `Bearer ${authToken}` }
         });
-        
+
         if (!response.ok) {
             throw new Error('Failed to load assessments');
         }
-        
+
         const data = await response.json();
         const quizzes = data.quizzes || [];
-        
+
         // Get quiz attempts to show completed quizzes
         const attemptsResponse = await fetch(`${API_URL}/assessments/my-attempts`, {
             headers: { 'Authorization': `Bearer ${authToken}` }
         });
-        
+
         const attemptsData = attemptsResponse.ok ? await attemptsResponse.json() : { attempts: [] };
         const attempts = attemptsData.attempts || [];
-        
+
         // Calculate stats
         const completedCount = attempts.filter(a => a.status === 'completed').length;
-        const avgScore = completedCount > 0 ? 
-            Math.round(attempts.filter(a => a.status === 'completed').reduce((sum, a) => sum + (a.score || 0), 0) / completedCount) : 
+        const avgScore = completedCount > 0 ?
+            Math.round(attempts.filter(a => a.status === 'completed').reduce((sum, a) => sum + (a.score || 0), 0) / completedCount) :
             0;
-        
+
         container.innerHTML = `
             <div class="content-header">
                 <h2>📝 Skill Assessments</h2>
@@ -407,16 +547,16 @@ async function loadCandidateAssessments() {
                     <h3>📋 Available Assessments</h3>
                     <div class="jobs-grid">
                         ${quizzes.map(quiz => {
-                            const attempt = attempts.find(a => a.quiz_id === quiz._id);
-                            const isCompleted = attempt && attempt.status === 'completed';
-                            const score = isCompleted ? attempt.score : null;
-                            
-                            return `
+            const attempt = attempts.find(a => a.quiz_id === quiz._id);
+            const isCompleted = attempt && attempt.status === 'completed';
+            const score = isCompleted ? attempt.score : null;
+
+            return `
                                 <div class="job-card">
                                     <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 12px;">
                                         <h3 style="margin: 0;">${quiz.title}</h3>
-                                        ${isCompleted ? `<span class="tag" style="background: #10b981; color: white;">✓ Completed</span>` : 
-                                                       `<span class="tag" style="background: #3b82f6; color: white;">Available</span>`}
+                                        ${isCompleted ? `<span class="tag" style="background: #10b981; color: white;">✓ Completed</span>` :
+                    `<span class="tag" style="background: #3b82f6; color: white;">Available</span>`}
                                     </div>
                                     <p style="color: #64748b; margin-bottom: 16px;">${quiz.description || 'Test your skills'}</p>
                                     <div style="display: flex; gap: 16px; margin-bottom: 16px; flex-wrap: wrap;">
@@ -436,7 +576,7 @@ async function loadCandidateAssessments() {
                                     </button>
                                 </div>
                             `;
-                        }).join('')}
+        }).join('')}
                     </div>
                 </div>
             ` : `
@@ -469,7 +609,7 @@ async function startQuiz(quizId) {
     if (!confirm('Are you ready to start this assessment? The timer will begin immediately.')) {
         return;
     }
-    
+
     try {
         const response = await fetch(`${API_URL}/assessments/quizzes/${quizId}/start`, {
             method: 'POST',
@@ -478,12 +618,12 @@ async function startQuiz(quizId) {
                 'Content-Type': 'application/json'
             }
         });
-        
+
         if (!response.ok) {
             const error = await response.json();
             throw new Error(error.error || 'Failed to start quiz');
         }
-        
+
         const data = await response.json();
         showNotification('✓ Assessment started! Good luck!', 'success');
         // Reload to show quiz interface
@@ -501,18 +641,18 @@ async function viewQuizResults(quizId) {
 async function loadCandidateProfile() {
     const container = document.getElementById('candidateProfile');
     container.innerHTML = '<div class="loading">Loading profile...</div>';
-    
+
     try {
         const response = await fetch(`${API_URL}/candidates/profile`, {
             headers: { 'Authorization': `Bearer ${authToken}` }
         });
-        
+
         if (!response.ok) {
             throw new Error('Profile not found');
         }
-        
+
         const profile = await response.json();
-        
+
         // Safely get profile data with proper defaults
         const firstName = profile.first_name || currentUser.full_name?.split(' ')[0] || 'User';
         const lastName = profile.last_name || currentUser.full_name?.split(' ').slice(1).join(' ') || '';
@@ -526,7 +666,7 @@ async function loadCandidateProfile() {
         const linkedin = profile.linkedin || '';
         const portfolio = profile.portfolio || '';
         const resumeUploaded = profile.resume_uploaded || profile.resume_file || false;
-        
+
         container.innerHTML = `
             <div class="content-header">
                 <h2>👤 My Profile</h2>
@@ -553,10 +693,10 @@ async function loadCandidateProfile() {
                 
                 <h4>Skills</h4>
                 <div class="job-tags" style="margin-bottom: 24px;">
-                    ${skills.length > 0 ? 
-                        skills.map(s => `<span class="tag">${s}</span>`).join('') :
-                        '<p class="text-muted">No skills added</p>'
-                    }
+                    ${skills.length > 0 ?
+                skills.map(s => `<span class="tag">${s}</span>`).join('') :
+                '<p class="text-muted">No skills added</p>'
+            }
                 </div>
                 
                 <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 24px; margin-bottom: 24px;">
@@ -571,12 +711,12 @@ async function loadCandidateProfile() {
                 </div>
                 
                 <h4>Resume</h4>
-                ${resumeUploaded ? 
-                    `<div class="alert alert-success">✓ Resume uploaded successfully</div>
+                ${resumeUploaded ?
+                `<div class="alert alert-success">✓ Resume uploaded successfully</div>
                      <button class="btn btn-secondary" onclick="uploadResume()">📤 Upload New Resume</button>` :
-                    `<div class="alert alert-warning">⚠️ No resume uploaded. Upload your resume to apply to jobs.</div>
+                `<div class="alert alert-warning">⚠️ No resume uploaded. Upload your resume to apply to jobs.</div>
                      <button class="btn btn-primary" onclick="uploadResume()">📤 Upload Resume</button>`
-                }
+            }
             </div>
         `;
     } catch (error) {
@@ -584,7 +724,7 @@ async function loadCandidateProfile() {
         // Create default profile view with current user data
         const firstName = currentUser.full_name?.split(' ')[0] || 'User';
         const lastName = currentUser.full_name?.split(' ').slice(1).join(' ') || '';
-        
+
         container.innerHTML = `
             <div class="content-header">
                 <h2>👤 My Profile</h2>
@@ -611,28 +751,33 @@ async function loadCandidateProfile() {
     }
 }
 
-function editProfile() {
-    // Get current profile data
-    const nameElement = document.querySelector('.card h3');
-    const currentName = nameElement ? nameElement.textContent : '';
-    const firstName = currentName.split(' ')[0] || '';
-    const lastName = currentName.split(' ').slice(1).join(' ') || '';
-    
-    const emailElement = document.querySelector('.card p');
-    const currentEmail = emailElement ? emailElement.textContent.replace('📧 ', '') : currentUser.email;
-    
-    const phoneElement = document.querySelectorAll('.card p')[1];
-    const currentPhone = phoneElement ? phoneElement.textContent.replace('📞 ', '').replace('Not provided', '') : '';
-    
-    const skillsElements = document.querySelectorAll('.tag');
-    const currentSkills = Array.from(skillsElements).map(el => el.textContent).join(', ');
-    
-    const expElement = Array.from(document.querySelectorAll('.card p')).find(p => p.previousElementSibling?.textContent === 'Experience');
-    const currentExperience = expElement ? expElement.textContent.replace(' years', '') : '0';
-    
-    const eduElement = Array.from(document.querySelectorAll('.card p')).find(p => p.previousElementSibling?.textContent === 'Education');
-    const currentEducation = eduElement ? eduElement.textContent : '';
-    
+async function editProfile() {
+    // Fetch fresh profile data from API instead of scraping DOM
+    let profile = {};
+    try {
+        const response = await fetch(`${API_URL}/candidates/profile`, {
+            headers: { 'Authorization': `Bearer ${authToken}` }
+        });
+        if (response.ok) {
+            profile = await response.json();
+        }
+    } catch (error) {
+        console.error('Failed to fetch profile for editing:', error);
+    }
+
+    // Extract data with proper fallbacks
+    const firstName = profile.first_name || currentUser.full_name?.split(' ')[0] || '';
+    const lastName = profile.last_name || currentUser.full_name?.split(' ').slice(1).join(' ') || '';
+    const currentEmail = profile.email || currentUser.email || '';
+    const currentPhone = profile.phone || '';
+    const currentSkills = (profile.skills || []).join(', ');
+    const currentExperience = profile.experience_years || profile.experience || 0;
+    const currentEducation = profile.education || '';
+    const currentLocation = profile.location || '';
+    const currentBio = profile.bio || '';
+    const currentLinkedin = profile.linkedin || '';
+    const currentPortfolio = profile.portfolio || '';
+
     // Create edit profile modal
     const modal = document.createElement('div');
     modal.className = 'modal show';
@@ -647,17 +792,17 @@ function editProfile() {
                     <div class="form-row">
                         <div class="form-group">
                             <label>First Name *</label>
-                            <input type="text" name="firstName" value="${firstName}" required>
+                            <input type="text" name="firstName" value="${escapeHtml(firstName)}" required placeholder="Enter first name">
                         </div>
                         <div class="form-group">
                             <label>Last Name *</label>
-                            <input type="text" name="lastName" value="${lastName}" required>
+                            <input type="text" name="lastName" value="${escapeHtml(lastName)}" required placeholder="Enter last name">
                         </div>
                     </div>
                     
                     <div class="form-group">
                         <label>Email *</label>
-                        <input type="email" name="email" value="${currentEmail}" required disabled>
+                        <input type="email" name="email" value="${escapeHtml(currentEmail)}" required disabled>
                         <small style="color: #718096;">Email cannot be changed</small>
                     </div>
                     
@@ -667,7 +812,7 @@ function editProfile() {
                             <select name="country_code" style="width: 140px;">
                                 <option value="+1">🇺🇸 +1 (US)</option>
                                 <option value="+44">🇬🇧 +44 (UK)</option>
-                                <option value="+91">🇮🇳 +91 (India)</option>
+                                <option value="+91" selected>🇮🇳 +91 (India)</option>
                                 <option value="+61">🇦🇺 +61 (Australia)</option>
                                 <option value="+81">🇯🇵 +81 (Japan)</option>
                                 <option value="+86">🇨🇳 +86 (China)</option>
@@ -682,13 +827,13 @@ function editProfile() {
                                 <option value="+82">🇰🇷 +82 (S. Korea)</option>
                                 <option value="+65">🇸🇬 +65 (Singapore)</option>
                             </select>
-                            <input type="tel" name="phone" value="${currentPhone}" placeholder="1234567890" style="flex: 1;">
+                            <input type="tel" name="phone" value="${escapeHtml(currentPhone)}" placeholder="1234567890" style="flex: 1;">
                         </div>
                     </div>
                     
                     <div class="form-group">
                         <label>Skills (comma-separated)</label>
-                        <input type="text" name="skills" value="${currentSkills}" 
+                        <input type="text" name="skills" value="${escapeHtml(currentSkills)}" 
                                placeholder="JavaScript, Python, React, Node.js">
                         <small style="color: #718096;">Separate skills with commas</small>
                     </div>
@@ -697,32 +842,32 @@ function editProfile() {
                         <div class="form-group">
                             <label>Years of Experience</label>
                             <input type="number" name="experience" value="${currentExperience}" 
-                                   min="0" max="50" step="0.5">
+                                   min="0" max="50" step="0.5" placeholder="0">
                         </div>
                         <div class="form-group">
                             <label>Current Location</label>
-                            <input type="text" name="location" placeholder="San Francisco, CA">
+                            <input type="text" name="location" value="${escapeHtml(currentLocation)}" placeholder="San Francisco, CA">
                         </div>
                     </div>
                     
                     <div class="form-group">
                         <label>Education</label>
-                        <textarea name="education" rows="3" placeholder="Bachelor's in Computer Science, Stanford University">${currentEducation}</textarea>
+                        <textarea name="education" rows="3" placeholder="Bachelor's in Computer Science, Stanford University">${escapeHtml(currentEducation)}</textarea>
                     </div>
                     
                     <div class="form-group">
                         <label>About / Bio</label>
-                        <textarea name="bio" rows="4" placeholder="Tell us about yourself, your experience, and career goals..."></textarea>
+                        <textarea name="bio" rows="4" placeholder="Tell us about yourself, your experience, and career goals...">${escapeHtml(currentBio)}</textarea>
                     </div>
                     
                     <div class="form-group">
                         <label>LinkedIn Profile URL</label>
-                        <input type="url" name="linkedin" placeholder="https://linkedin.com/in/yourprofile">
+                        <input type="url" name="linkedin" value="${escapeHtml(currentLinkedin)}" placeholder="https://linkedin.com/in/yourprofile">
                     </div>
                     
                     <div class="form-group">
                         <label>Portfolio Website</label>
-                        <input type="url" name="portfolio" placeholder="https://yourportfolio.com">
+                        <input type="url" name="portfolio" value="${escapeHtml(currentPortfolio)}" placeholder="https://yourportfolio.com">
                     </div>
                 </div>
                 <div class="modal-footer">
@@ -734,8 +879,16 @@ function editProfile() {
             </form>
         </div>
     `;
-    
+
     document.body.appendChild(modal);
+}
+
+// Helper function to escape HTML in template literals
+function escapeHtml(text) {
+    if (!text) return '';
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
 }
 
 async function submitProfileEdit(e) {
@@ -743,19 +896,19 @@ async function submitProfileEdit(e) {
     const form = e.target;
     const submitBtn = form.querySelector('button[type="submit"]');
     const originalText = submitBtn.innerHTML;
-    
+
     submitBtn.disabled = true;
     submitBtn.innerHTML = '<span class="spinner show"></span> Saving...';
-    
+
     try {
         const formData = new FormData(form);
-        const skills = formData.get('skills') 
+        const skills = formData.get('skills')
             ? formData.get('skills').split(',').map(s => s.trim()).filter(s => s)
             : [];
-        
+
         const profileData = {
-            first_name: formData.get('first_name'),
-            last_name: formData.get('last_name'),
+            first_name: formData.get('firstName'),
+            last_name: formData.get('lastName'),
             country_code: formData.get('country_code'),
             phone: formData.get('phone'),
             skills: skills,
@@ -766,7 +919,7 @@ async function submitProfileEdit(e) {
             linkedin: formData.get('linkedin'),
             portfolio: formData.get('portfolio')
         };
-        
+
         const response = await fetch(`${API_URL}/candidates/profile`, {
             method: 'PUT',
             headers: {
@@ -775,11 +928,11 @@ async function submitProfileEdit(e) {
             },
             body: JSON.stringify(profileData)
         });
-        
+
         const contentType = response.headers.get('content-type');
         if (contentType && contentType.includes('application/json')) {
             const data = await response.json();
-            
+
             if (response.ok) {
                 showNotification('✓ Profile updated successfully!', 'success');
                 form.closest('.modal').remove();
@@ -846,7 +999,7 @@ function uploadResume() {
         </div>
     `;
     document.body.appendChild(modal);
-    
+
     // Make upload zone clickable
     document.getElementById('uploadZone').onclick = (e) => {
         if (e.target.id === 'uploadZone' || e.target.closest('.upload-icon') || e.target.tagName === 'H4' || e.target.tagName === 'P') {
@@ -873,7 +1026,7 @@ function handleDrop(e) {
     e.preventDefault();
     e.stopPropagation();
     e.currentTarget.classList.remove('drag-over');
-    
+
     const files = e.dataTransfer.files;
     if (files.length > 0) {
         validateAndPreviewFile(files[0]);
@@ -894,14 +1047,14 @@ function validateAndPreviewFile(file) {
         showNotification('Please upload a PDF, DOC, or DOCX file', 'error');
         return;
     }
-    
+
     // Validate file size (5MB max)
     const maxSize = 5 * 1024 * 1024; // 5MB in bytes
     if (file.size > maxSize) {
         showNotification('File size must be less than 5MB', 'error');
         return;
     }
-    
+
     // Store file and show preview
     selectedFile = file;
     document.getElementById('uploadZone').style.display = 'none';
@@ -930,18 +1083,18 @@ async function submitResume() {
         showNotification('Please select a file first', 'error');
         return;
     }
-    
+
     const uploadBtn = document.getElementById('uploadBtn');
     uploadBtn.disabled = true;
     uploadBtn.innerHTML = '<span class="spinner show"></span> Uploading...';
-    
+
     // Show progress bar
     document.getElementById('uploadProgress').style.display = 'block';
-    
+
     try {
         const formData = new FormData();
         formData.append('resume', selectedFile);
-        
+
         // Simulate upload progress
         let progress = 0;
         const progressInterval = setInterval(() => {
@@ -951,7 +1104,7 @@ async function submitResume() {
                 document.getElementById('progressText').textContent = progress + '%';
             }
         }, 100);
-        
+
         const response = await fetch(`${API_URL}/candidates/upload-resume`, {
             method: 'POST',
             headers: {
@@ -959,20 +1112,20 @@ async function submitResume() {
             },
             body: formData
         });
-        
+
         clearInterval(progressInterval);
         document.getElementById('progressFill').style.width = '100%';
         document.getElementById('progressText').textContent = '100%';
-        
+
         if (response.ok) {
             const data = await response.json();
-            
+
             if (data.skills_count > 0) {
                 showNotification(`✓ Resume uploaded successfully! Found ${data.skills_count} skills: ${data.skills_found.slice(0, 5).join(', ')}${data.skills_count > 5 ? '...' : ''}`, 'success');
             } else {
                 showNotification('✓ Resume uploaded successfully! No technical skills detected. Please add skills manually in your profile.', 'warning');
             }
-            
+
             // Close modal after short delay
             setTimeout(() => {
                 const modal = document.querySelector('.modal');
@@ -998,7 +1151,7 @@ function candidateLogout() {
     localStorage.removeItem('authToken');
     localStorage.removeItem('currentUser');
     localStorage.removeItem('currentRole');
-    
+
     // Reload the page to return to login
     window.location.href = '/';
 }
@@ -1009,28 +1162,33 @@ function candidateLogout() {
 async function loadCandidateAnalytics() {
     const container = document.getElementById('candidateAnalytics');
     container.innerHTML = '<div class="loading">Loading your analytics...</div>';
-    
+
     try {
-        // Fetch candidate data
-        const [appsRes, profileRes] = await Promise.all([
+        // Fetch candidate data AND available jobs in parallel
+        const [appsRes, profileRes, jobsRes] = await Promise.all([
             fetch(`${API_URL}/candidates/applications`, {
                 headers: { 'Authorization': `Bearer ${authToken}` }
             }),
             fetch(`${API_URL}/candidates/profile`, {
                 headers: { 'Authorization': `Bearer ${authToken}` }
+            }),
+            fetch(`${API_URL}/jobs/list?status=open`, {
+                headers: { 'Authorization': `Bearer ${authToken}` }
             })
         ]);
-        
+
         if (!appsRes.ok || !profileRes.ok) {
             throw new Error('Failed to load analytics data');
         }
-        
+
         const appsData = await appsRes.json();
         const profileData = await profileRes.json();
-        
+        const jobsData = jobsRes.ok ? await jobsRes.json() : { jobs: [] };
+
         const applications = appsData.applications || [];
         const profile = profileData.candidate || {};
-        
+        const allJobs = jobsData.jobs || [];  // FIX: allJobs is now properly fetched
+
         // Calculate metrics
         const totalApps = applications.length;
         const shortlisted = applications.filter(a => a.status === 'shortlisted').length;
@@ -1038,30 +1196,30 @@ async function loadCandidateAnalytics() {
         const hired = applications.filter(a => a.status === 'hired').length;
         const rejected = applications.filter(a => a.status === 'rejected').length;
         const pending = applications.filter(a => a.status === 'applied' || a.status === 'pending' || a.status === 'submitted').length;
-        
+
         // Success rates
         const shortlistRate = totalApps > 0 ? ((shortlisted / totalApps) * 100).toFixed(1) : 0;
         const interviewRate = totalApps > 0 ? ((interviewed / totalApps) * 100).toFixed(1) : 0;
         const successRate = totalApps > 0 ? (((shortlisted + interviewed + hired) / totalApps) * 100).toFixed(1) : 0;
-        
-        // Average match score
-        const avgScore = totalApps > 0 ? 
-            (applications.reduce((sum, a) => sum + (a.cci_score || 0), 0) / totalApps).toFixed(1) : 0;
-        
+
+        // Average match score - check both possible field names for compatibility
+        const avgScore = totalApps > 0 ?
+            (applications.reduce((sum, a) => sum + (a.overall_score || a.cci_score || a.match_score || 0), 0) / totalApps).toFixed(1) : 0;
+
         // Profile completion
         const profileCompletion = calculateProfileCompletion(profile);
-        
+
         // Matching jobs count
         const candidateSkills = profile.skills || [];
         const matchingJobs = allJobs.filter(job => {
             const jobSkills = job.required_skills || [];
-            const matchedSkills = jobSkills.filter(skill => 
-                candidateSkills.some(cs => cs.toLowerCase().includes(skill.toLowerCase()) || 
-                                          skill.toLowerCase().includes(cs.toLowerCase()))
+            const matchedSkills = jobSkills.filter(skill =>
+                candidateSkills.some(cs => cs.toLowerCase().includes(skill.toLowerCase()) ||
+                    skill.toLowerCase().includes(cs.toLowerCase()))
             );
             return matchedSkills.length >= jobSkills.length * 0.5;
         }).length;
-        
+
         container.innerHTML = `
             <div class="analytics-header">
                 <div class="analytics-title">
@@ -1137,7 +1295,7 @@ async function loadCandidateAnalytics() {
                         <div class="funnel-percent">100%</div>
                     </div>
                     
-                    <div class="funnel-stage" style="width: ${shortlisted > 0 ? (shortlisted/totalApps*100) : 0}%;">
+                    <div class="funnel-stage" style="width: ${shortlisted > 0 ? (shortlisted / totalApps * 100) : 0}%;">
                         <div class="funnel-bar" style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);">
                             <span class="funnel-label">Shortlisted</span>
                             <span class="funnel-value">${shortlisted}</span>
@@ -1145,7 +1303,7 @@ async function loadCandidateAnalytics() {
                         <div class="funnel-percent">${shortlistRate}%</div>
                     </div>
                     
-                    <div class="funnel-stage" style="width: ${interviewed > 0 ? (interviewed/totalApps*100) : 0}%;">
+                    <div class="funnel-stage" style="width: ${interviewed > 0 ? (interviewed / totalApps * 100) : 0}%;">
                         <div class="funnel-bar" style="background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);">
                             <span class="funnel-label">Interviewed</span>
                             <span class="funnel-value">${interviewed}</span>
@@ -1153,12 +1311,12 @@ async function loadCandidateAnalytics() {
                         <div class="funnel-percent">${interviewRate}%</div>
                     </div>
                     
-                    <div class="funnel-stage" style="width: ${hired > 0 ? (hired/totalApps*100) : 5}%;">
+                    <div class="funnel-stage" style="width: ${hired > 0 ? (hired / totalApps * 100) : 5}%;">
                         <div class="funnel-bar" style="background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%);">
                             <span class="funnel-label">Hired</span>
                             <span class="funnel-value">${hired}</span>
                         </div>
-                        <div class="funnel-percent">${totalApps > 0 ? ((hired/totalApps)*100).toFixed(1) : 0}%</div>
+                        <div class="funnel-percent">${totalApps > 0 ? ((hired / totalApps) * 100).toFixed(1) : 0}%</div>
                     </div>
                 </div>
             </div>
@@ -1175,7 +1333,7 @@ async function loadCandidateAnalytics() {
                             <svg viewBox="0 0 200 200" class="circular-progress">
                                 <circle cx="100" cy="100" r="80" fill="none" stroke="#f3f4f6" stroke-width="20"/>
                                 <circle cx="100" cy="100" r="80" fill="none" stroke="url(#gradient)" stroke-width="20"
-                                    stroke-dasharray="${(profileCompletion/100)*502.4} 502.4" 
+                                    stroke-dasharray="${(profileCompletion / 100) * 502.4} 502.4" 
                                     transform="rotate(-90 100 100)" stroke-linecap="round"/>
                                 <defs>
                                     <linearGradient id="gradient" x1="0%" y1="0%" x2="100%" y2="100%">
@@ -1214,7 +1372,7 @@ async function loadCandidateAnalytics() {
                                 Hired
                             </div>
                             <div class="decision-bar">
-                                <div class="decision-fill" style="width: ${totalApps > 0 ? (hired/totalApps*100) : 0}%; background: #10b981;"></div>
+                                <div class="decision-fill" style="width: ${totalApps > 0 ? (hired / totalApps * 100) : 0}%; background: #10b981;"></div>
                             </div>
                             <div class="decision-value">${hired}</div>
                         </div>
@@ -1225,7 +1383,7 @@ async function loadCandidateAnalytics() {
                                 Interviewed
                             </div>
                             <div class="decision-bar">
-                                <div class="decision-fill" style="width: ${totalApps > 0 ? (interviewed/totalApps*100) : 0}%; background: #3b82f6;"></div>
+                                <div class="decision-fill" style="width: ${totalApps > 0 ? (interviewed / totalApps * 100) : 0}%; background: #3b82f6;"></div>
                             </div>
                             <div class="decision-value">${interviewed}</div>
                         </div>
@@ -1236,7 +1394,7 @@ async function loadCandidateAnalytics() {
                                 Shortlisted
                             </div>
                             <div class="decision-bar">
-                                <div class="decision-fill" style="width: ${totalApps > 0 ? (shortlisted/totalApps*100) : 0}%; background: #f59e0b;"></div>
+                                <div class="decision-fill" style="width: ${totalApps > 0 ? (shortlisted / totalApps * 100) : 0}%; background: #f59e0b;"></div>
                             </div>
                             <div class="decision-value">${shortlisted}</div>
                         </div>
@@ -1247,7 +1405,7 @@ async function loadCandidateAnalytics() {
                                 Pending Review
                             </div>
                             <div class="decision-bar">
-                                <div class="decision-fill" style="width: ${totalApps > 0 ? (pending/totalApps*100) : 0}%; background: #6b7280;"></div>
+                                <div class="decision-fill" style="width: ${totalApps > 0 ? (pending / totalApps * 100) : 0}%; background: #6b7280;"></div>
                             </div>
                             <div class="decision-value">${pending}</div>
                         </div>
@@ -1258,7 +1416,7 @@ async function loadCandidateAnalytics() {
                                 Not Selected
                             </div>
                             <div class="decision-bar">
-                                <div class="decision-fill" style="width: ${totalApps > 0 ? (rejected/totalApps*100) : 0}%; background: #ef4444;"></div>
+                                <div class="decision-fill" style="width: ${totalApps > 0 ? (rejected / totalApps * 100) : 0}%; background: #ef4444;"></div>
                             </div>
                             <div class="decision-value">${rejected}</div>
                         </div>
@@ -1288,7 +1446,7 @@ async function loadCandidateAnalytics() {
                 </div>
             </div>
         `;
-        
+
     } catch (error) {
         console.error('Error loading candidate analytics:', error);
         container.innerHTML = `
@@ -1310,7 +1468,7 @@ function calculateProfileCompletion(profile) {
         profile.location,
         profile.linkedin
     ];
-    
+
     score = (factors.filter(f => f).length / factors.length) * 100;
     return Math.round(score);
 }
@@ -1319,11 +1477,11 @@ function generateSkillsInsights(applications, profile) {
     if (applications.length === 0) {
         return '<div class="empty-state">Apply to jobs to see skills match insights</div>';
     }
-    
+
     // Analyze most common required skills
     const allRequiredSkills = {};
     const candidateSkills = (profile.skills || []).map(s => s.toLowerCase());
-    
+
     applications.forEach(app => {
         if (app.job_details && app.job_details.required_skills) {
             app.job_details.required_skills.forEach(skill => {
@@ -1332,7 +1490,7 @@ function generateSkillsInsights(applications, profile) {
                     allRequiredSkills[skillLower] = {
                         name: skill,
                         count: 0,
-                        hasSkill: candidateSkills.some(cs => 
+                        hasSkill: candidateSkills.some(cs =>
                             cs.includes(skillLower) || skillLower.includes(cs)
                         )
                     };
@@ -1341,15 +1499,15 @@ function generateSkillsInsights(applications, profile) {
             });
         }
     });
-    
+
     const sortedSkills = Object.values(allRequiredSkills)
         .sort((a, b) => b.count - a.count)
         .slice(0, 8);
-    
+
     if (sortedSkills.length === 0) {
         return '<div class="empty-state">No skills data available</div>';
     }
-    
+
     return `
         <div class="skills-grid">
             ${sortedSkills.map(skill => `
@@ -1368,7 +1526,7 @@ function generateSkillsInsights(applications, profile) {
 
 function generateRecommendations(applications, profile, profileCompletion, avgScore, matchingJobs) {
     const recommendations = [];
-    
+
     // Profile completion
     if (profileCompletion < 80) {
         recommendations.push({
@@ -1380,7 +1538,7 @@ function generateRecommendations(applications, profile, profileCompletion, avgSc
             onclick: "switchCandidateTab('profile', event)"
         });
     }
-    
+
     // Match score improvement
     if (avgScore < 70 && avgScore > 0) {
         recommendations.push({
@@ -1392,7 +1550,7 @@ function generateRecommendations(applications, profile, profileCompletion, avgSc
             onclick: "switchCandidateTab('profile', event)"
         });
     }
-    
+
     // More applications
     if (applications.length < 5) {
         recommendations.push({
@@ -1404,7 +1562,7 @@ function generateRecommendations(applications, profile, profileCompletion, avgSc
             onclick: "switchCandidateTab('browse', event)"
         });
     }
-    
+
     // Matching jobs available
     if (matchingJobs > 0) {
         recommendations.push({
@@ -1416,7 +1574,7 @@ function generateRecommendations(applications, profile, profileCompletion, avgSc
             onclick: "switchCandidateTab('browse', event)"
         });
     }
-    
+
     // Take assessments
     recommendations.push({
         icon: '📝',
@@ -1426,7 +1584,7 @@ function generateRecommendations(applications, profile, profileCompletion, avgSc
         color: '#f093fb',
         onclick: "switchCandidateTab('assessments', event)"
     });
-    
+
     if (recommendations.length === 0) {
         recommendations.push({
             icon: '🎉',
@@ -1437,7 +1595,7 @@ function generateRecommendations(applications, profile, profileCompletion, avgSc
             onclick: "switchCandidateTab('browse', event)"
         });
     }
-    
+
     return recommendations.map(rec => `
         <div class="recommendation-card" style="border-left: 4px solid ${rec.color};">
             <div class="rec-icon" style="background: ${rec.color}20;">${rec.icon}</div>
@@ -1453,6 +1611,65 @@ function generateRecommendations(applications, profile, profileCompletion, avgSc
 }
 
 function exportCandidateReport() {
-    showNotification('Exporting your career report...', 'success');
-    // In production, this would generate PDF report
+    try {
+        // Gather all applications data from the DOM or re-fetch
+        // We'll build CSV from whatever analytics are currently loaded
+        const rows = [];
+        // Header row
+        rows.push(['Application Report - Smart Hiring System']);
+        rows.push(['Generated', new Date().toLocaleString()]);
+        rows.push([]);
+        rows.push(['Job Title', 'Company', 'Status', 'Match Score', 'Applied Date']);
+
+        // Collect application cards from the DOM
+        const appCards = document.querySelectorAll('.application-item, .timeline-item, .app-card');
+        if (appCards.length > 0) {
+            appCards.forEach(card => {
+                const title = card.querySelector('h3, h4, .job-title, .app-title')?.textContent?.trim() || 'N/A';
+                const company = card.querySelector('.company-name, .company, .subtitle')?.textContent?.trim() || 'N/A';
+                const status = card.querySelector('.status-badge, .badge')?.textContent?.trim() || 'N/A';
+                const score = card.querySelector('.score, .match-score')?.textContent?.trim() || 'N/A';
+                const date = card.querySelector('.date, .applied-date, time')?.textContent?.trim() || 'N/A';
+                rows.push([title, company, status, score, date]);
+            });
+        }
+
+        // Also export KPI summary from analytics if visible
+        const kpiCards = document.querySelectorAll('.kpi-card .kpi-value, .stat-value, .metric-value');
+        if (kpiCards.length > 0) {
+            rows.push([]);
+            rows.push(['--- Summary Metrics ---']);
+            const kpiLabels = document.querySelectorAll('.kpi-card .kpi-label, .stat-label, .metric-label');
+            kpiCards.forEach((kpi, i) => {
+                const label = kpiLabels[i]?.textContent?.trim() || `Metric ${i + 1}`;
+                rows.push([label, kpi.textContent.trim()]);
+            });
+        }
+
+        // If no DOM data found, provide a helpful fallback
+        if (appCards.length === 0 && kpiCards.length === 0) {
+            rows.push(['No application data loaded. Please visit the Analytics tab first.']);
+        }
+
+        // Convert to CSV string
+        const csv = rows.map(row =>
+            row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(',')
+        ).join('\n');
+
+        // Download
+        const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `candidate_report_${new Date().toISOString().slice(0, 10)}.csv`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+
+        showNotification('Report exported as CSV successfully!', 'success');
+    } catch (error) {
+        console.error('Export error:', error);
+        showNotification('Failed to export report. Please try again.', 'error');
+    }
 }

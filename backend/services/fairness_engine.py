@@ -213,6 +213,12 @@ class FairnessMetrics:
         fpr_diff = max(fprs) - min(fprs)
         
         return float(0.5 * (tpr_diff + fpr_diff))
+
+    # Alias: equalized_odds_difference delegates to average_odds_difference
+    # (same metric, different naming convention used by Fairlearn vs AIF360)
+    def equalized_odds_difference(self) -> float:
+        """Alias for average_odds_difference (Fairlearn naming convention)."""
+        return self.average_odds_difference()
     
     def predictive_parity_difference(self) -> float:
         """
@@ -323,6 +329,64 @@ class FairnessMetrics:
             }
             for group, stats in self.group_stats.items()
         }
+
+    # ── Convenience aliases used by fairness_proxy.py ─────────────────────────
+
+    def group_fairness_metrics(self) -> Dict[str, Dict]:
+        """Alias for get_group_statistics() — used by fairness_proxy."""
+        return self.get_group_statistics()
+
+    def overall_fairness_score(self) -> float:
+        """
+        Compute a single 0-100 fairness score from all metrics.
+
+        Deductions are applied for each metric exceeding its threshold:
+          demographic_parity_difference > 0.1  →  -20
+          equal_opportunity_difference  > 0.1  →  -20
+          average_odds_difference       > 0.1  →  -15
+          predictive_parity_difference  > 0.15 →  -10
+          disparate_impact ratio        < 0.8  →  -15
+          theil_index                   > 0.15 →  -10
+
+        Returns:
+            float: Score between 0 and 100 (higher is fairer).
+        """
+        score = 100.0
+        if self.demographic_parity_difference() > 0.1:
+            score -= 20
+        if self.equal_opportunity_difference() > 0.1:
+            score -= 20
+        if self.average_odds_difference() > 0.1:
+            score -= 15
+        if self.predictive_parity_difference() > 0.15:
+            score -= 10
+        # Disparate impact: check if any pairwise ratio < 0.8
+        di = self.disparate_impact()
+        if di and min(di.values()) < 0.8:
+            score -= 15
+        if self.theil_index() > 0.15:
+            score -= 10
+        return max(0.0, round(score, 2))
+
+    def is_fair(self, dp_threshold: float = 0.1,
+                di_threshold: float = 0.8,
+                eo_threshold: float = 0.1) -> bool:
+        """
+        Quick boolean check — returns True if core metrics are within thresholds.
+
+        Args:
+            dp_threshold: Max demographic parity difference (default 0.1).
+            di_threshold: Min disparate impact ratio (default 0.8 per 4/5 rule).
+            eo_threshold: Max equal opportunity difference (default 0.1).
+        """
+        if self.demographic_parity_difference() > dp_threshold:
+            return False
+        if self.equal_opportunity_difference() > eo_threshold:
+            return False
+        di = self.disparate_impact()
+        if di and min(di.values()) < di_threshold:
+            return False
+        return True
 
 
 class BiasDetector:

@@ -60,7 +60,7 @@ spacy==3.7.2  # Core spaCy library
 # --- Advanced Transformers & LLMs ---
 transformers==4.36.2  # Hugging Face transformers (BERT, GPT, T5)
 torch==2.1.2  # PyTorch for deep learning
-sentence-transformers==2.2.2  # Semantic similarity using SBERT
+sentence-transformers>=3.0.0  # Semantic similarity using SBERT
 
 # --- Text Processing ---
 nltk==3.8.1  # Natural Language Toolkit

@@ -19,20 +19,28 @@ class Database:
             cfg = config[env]
             mongo_uri = cfg.MONGODB_URI
             
-            # For MongoDB Atlas (cloud), add SSL settings
+            # Connection kwargs shared across all connections
+            connection_kwargs = {
+                'serverSelectionTimeoutMS': 30000,
+                'connectTimeoutMS': 30000,
+                'socketTimeoutMS': 30000
+            }
+            
+            # For MongoDB Atlas (cloud), add TLS settings
             if 'mongodb.net' in mongo_uri or 'mongodb+srv' in mongo_uri:
-                print("🔒 Connecting to MongoDB Atlas with SSL...")
-                # Add TLS settings if not already in URI
+                print("🔒 Connecting to MongoDB Atlas with TLS...")
+                # Add TLS if not already in URI
                 if 'tls=' not in mongo_uri and 'ssl=' not in mongo_uri:
                     separator = '&' if '?' in mongo_uri else '?'
-                    mongo_uri = f"{mongo_uri}{separator}tls=true&tlsAllowInvalidCertificates=true"
+                    mongo_uri = f"{mongo_uri}{separator}tls=true"
                 
-                self._client = MongoClient(
-                    mongo_uri,
-                    serverSelectionTimeoutMS=30000,
-                    connectTimeoutMS=30000,
-                    socketTimeoutMS=30000
-                )
+                # Support custom CA file for self-hosted MongoDB with self-signed certs
+                ca_file = os.getenv('MONGODB_CA_FILE')
+                if ca_file and os.path.exists(ca_file):
+                    connection_kwargs['tlsCAFile'] = ca_file
+                    print(f"🔐 Using custom CA file: {ca_file}")
+                
+                self._client = MongoClient(mongo_uri, **connection_kwargs)
             else:
                 # Local MongoDB
                 self._client = MongoClient(mongo_uri)

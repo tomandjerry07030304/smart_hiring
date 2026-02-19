@@ -1,30 +1,46 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta http-equiv="X-Content-Type-Options" content="nosniff">
     <meta http-equiv="X-Frame-Options" content="DENY">
+    <!-- Prevent back-navigation autofill -->
+    <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
     <title>Smart Hiring System</title>
-    <link rel="stylesheet" href="styles.css">
-    <link rel="stylesheet" href="ui-enhancements.css">
-    <link rel="stylesheet" href="analytics-dashboard.css">
-    <link rel="stylesheet" href="enterprise-ui.css">
-    <link rel="stylesheet" href="a11y.css">
+    <link rel="stylesheet" href="/styles.css">
+    <link rel="stylesheet" href="/ui-enhancements.css">
+    <link rel="stylesheet" href="/analytics-dashboard.css">
+    <link rel="stylesheet" href="/enterprise-ui.css">
+    <link rel="stylesheet" href="/a11y.css">
     <!-- Chart.js for data visualization -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+
+    <!-- Google Fonts: Clash Display (Headers) & Plus Jakarta Sans (Body) -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Clash+Display:wght@400;500;600;700&family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap"
+        rel="stylesheet">
 </head>
+
 <body>
     <a href="#main-content" class="skip-link">Skip to main content</a>
     <div id="notification-container" class="notification-container"></div>
     <main id="app" role="main" aria-label="main-content"></main>
-    <script src="a11y.js"></script>
-    <script src="ui-utils.js"></script>
-    <script src="ui-enhancements.js"></script>
-    <script src="security-utils.js"></script>
-    <script src="app.js"></script>
-    <script src="admin.js"></script>
-    <script src="company.js"></script>
-    <script src="candidate.js"></script>
+    <script src="/a11y.js"></script>
+    <script src="/ui-utils.js"></script>
+    <script src="/ui-enhancements.js"></script>
+    <script src="/security-utils.js"></script>
+    <!-- API Client with Global 401 Interceptor - MUST load before app.js -->
+    <script src="/api.js"></script>
+    <script src="/app.js"></script>
+    <script src="/admin.js"></script>
+    <script src="/company.js"></script>
+    <script src="/candidate.js"></script>
 </body>
+
 </html>

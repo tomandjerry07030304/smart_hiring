@@ -62,10 +62,11 @@ def register():
             print("❌ Email validation failed")
             return jsonify({'error': 'Invalid email format'}), 400
         
-        # Validate role
-        if role not in ['candidate', 'recruiter', 'admin']:
+        # Validate role - Only candidate and recruiter allowed via registration
+        # Admin accounts must be created by existing admins or via CLI
+        if role not in ['candidate', 'recruiter']:
             print(f"❌ Invalid role: {role}")
-            return jsonify({'error': 'Invalid role. Must be candidate, recruiter, or admin'}), 400
+            return jsonify({'error': 'Invalid role. Must be candidate or recruiter'}), 400
         
         # Validate password strength (minimum 8 chars, complexity requirements)
         if len(password) < 8:
@@ -102,7 +103,12 @@ def register():
         verification_expires = datetime.utcnow() + timedelta(hours=24)
         
         print("👤 Creating user object...")
-        # Create user with email_verified = False
+        
+        # P0 FIX: Check environment for dev mode auto-activation
+        flask_env = os.getenv('FLASK_ENV', 'production')
+        is_dev_mode = flask_env == 'development'
+        
+        # Create user - auto-activate in dev mode, otherwise require email verification
         user = User(
             email=email,
             password_hash=password_hash,
@@ -111,14 +117,24 @@ def register():
             phone=data.get('phone', ''),
             linkedin_url=data.get('linkedin_url', ''),
             github_url=data.get('github_url', ''),
-            is_active=False  # Priority 1: User inactive by default until verified
+            is_active=is_dev_mode  # DEV MODE: auto-activate, PROD: require email verification
         )
         
         # P0 FIX: Add verification fields to user document
         user_dict = user.to_dict()
-        user_dict['email_verified'] = False
+        user_dict['email_verified'] = is_dev_mode  # Auto-verify in dev mode
         user_dict['verification_token'] = verification_token_hash
         user_dict['verification_expires'] = verification_expires
+        
+        # ALWAYS print verification URL to console for testing
+        base_url = os.getenv('FRONTEND_URL', 'http://localhost:5000')
+        verification_url = f"{base_url}/api/auth/verify-email?token={verification_token}&email={email}"
+        print(f"\n{'='*60}")
+        print(f"🔗 VERIFICATION URL (for testing):")
+        print(f"   {verification_url}")
+        if is_dev_mode:
+            print(f"   ✅ DEV MODE: User auto-activated, no verification needed")
+        print(f"{'='*60}\n")
         
         print("💾 Inserting user into database...")
         result = users_collection.insert_one(user_dict)
@@ -137,22 +153,28 @@ def register():
         # Generate JWT token
         access_token = create_access_token(identity={'user_id': user_id, 'role': role})
         
-        # P0 FIX: Send verification email instead of just welcome email
+        # P0 FIX: Send verification email AND welcome email
         verification_email_sent = False
         welcome_email_sent = False
         try:
-            # Send verification email first
-            # Priority 1: Async Verification Email via Celery
+            # Priority 1: Try Async Verification Email via Celery
             task = send_verification_email.delay(email, full_name, verification_token)
             verification_email_sent = True
             logger.info(f"✅ Verification email task dispatched for {email} (Task ID: {task.id})")
-            
-            # Also send welcome email (Async)
-            # welcome_email_sent = email_service.send_welcome_email(email, full_name, role)
-            # if welcome_email_sent:
-            #    logger.info(f"✅ Welcome email sent to {email}")
-        except Exception as email_error:
-            logger.error(f"❌ Email exception for {email}: {email_error}")
+        except Exception as celery_error:
+            logger.warning(f"⚠️ Celery not available, sending verification email synchronously: {celery_error}")
+            try:
+                verification_email_sent = email_service.send_email_verification(email, full_name, verification_token)
+            except Exception as sync_error:
+                logger.error(f"❌ Sync verification email also failed: {sync_error}")
+        
+        # Send welcome email (synchronous)
+        try:
+            welcome_email_sent = email_service.send_welcome_email(email, full_name, role)
+            if welcome_email_sent:
+                logger.info(f"✅ Welcome email sent to {email}")
+        except Exception as welcome_error:
+            logger.error(f"❌ Welcome email exception for {email}: {welcome_error}")
         
         print(f"🎉 Registration successful for {email}")
         return jsonify({
@@ -225,10 +247,28 @@ def login():
         
         print("✅ Password correct")
         
-        # Check if user is active
+        # Role mismatch detection (for debugging)
+        requested_role = data.get('role')
+        actual_role = user.get('role')
+        if requested_role and actual_role:
+            # Normalize roles for comparison
+            normalized_requested = 'recruiter' if requested_role in ['company', 'recruiter'] else requested_role
+            normalized_actual = 'recruiter' if actual_role in ['company', 'recruiter'] else actual_role
+            
+            if normalized_requested != normalized_actual and normalized_requested != 'admin':
+                print(f"⚠️ ROLE MISMATCH WARNING: User '{email}' has role '{actual_role}' but tried to login via '{requested_role}' portal")
+                print(f"   💡 To fix: Update user's role in database or use the correct portal")
+                # Note: We allow login but log the mismatch. The frontend handles portal redirection.
+        
+        # Check if user is active (email verified)
         if not user.get('is_active', True):
-            print("❌ User account is deactivated")
-            return jsonify({'error': 'Account is deactivated'}), 403
+            print("❌ User account is not activated")
+            # UX FIX: Provide specific, actionable error message
+            return jsonify({
+                'error': 'Account not activated. Please check your email to verify your account.',
+                'email_verified': user.get('email_verified', False),
+                'requires_verification': True
+            }), 403
         
         print("🎫 Generating JWT token...")
         # Generate JWT token with user_id as identity and role as additional claim
@@ -378,7 +418,7 @@ def forgot_password():
             email_sent = email_service.send_password_reset_email(
                 to_email=email,
                 reset_link=reset_link,
-                user_name=user.get('name', email)
+                user_name=user.get('full_name', user.get('name', email))
             )
         except Exception as email_error:
             logger.warning(f"Failed to send password reset email: {email_error}")
@@ -756,4 +796,214 @@ def get_email_metrics():
         }), 200
         
     except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+# =============================================================================
+# FRAUD REPORT & ACCOUNT SECURITY ENDPOINTS
+# =============================================================================
+
+@bp.route('/report-fraud', methods=['POST'])
+@rate_limit(max_requests=5, window_seconds=3600)
+def report_fraud():
+    """
+    Report suspicious/unauthorized activity on account.
+    
+    This endpoint:
+    1. Accepts fraud reports from users (authenticated or via email)
+    2. Temporarily locks the account for security
+    3. Sends a confirmation email to the account holder
+    4. Logs the incident for admin review
+    
+    Body:
+        email: User's email address
+        report_type: 'unauthorized_login' | 'unauthorized_application' | 'account_compromise' | 'other'
+        details: Optional description of the suspicious activity
+    """
+    try:
+        data = request.get_json()
+        
+        if not data or 'email' not in data:
+            return jsonify({'error': 'Email is required'}), 400
+        
+        email = data['email'].lower().strip()
+        report_type = data.get('report_type', 'suspicious_activity')
+        details = data.get('details', '')
+        
+        if not validate_email(email):
+            return jsonify({'error': 'Invalid email format'}), 400
+        
+        db = get_db()
+        users_collection = db['users']
+        
+        # Find user
+        user = users_collection.find_one({'email': email})
+        
+        if not user:
+            # Security: Don't reveal if email exists
+            return jsonify({
+                'message': 'If an account exists with this email, the report has been filed and the account has been secured.'
+            }), 200
+        
+        # Temporarily lock the account
+        users_collection.update_one(
+            {'_id': user['_id']},
+            {
+                '$set': {
+                    'is_active': False,
+                    'account_locked': True,
+                    'account_locked_reason': f'Fraud report: {report_type}',
+                    'account_locked_at': datetime.utcnow(),
+                    'updated_at': datetime.utcnow()
+                }
+            }
+        )
+        
+        # Log the fraud report
+        fraud_reports_collection = db['fraud_reports']
+        ip_address = request.headers.get('X-Forwarded-For', request.remote_addr)
+        fraud_reports_collection.insert_one({
+            'user_id': str(user['_id']),
+            'email': email,
+            'report_type': report_type,
+            'details': details,
+            'reporter_ip': ip_address,
+            'reporter_user_agent': request.headers.get('User-Agent', 'Unknown')[:200],
+            'status': 'pending_review',
+            'created_at': datetime.utcnow()
+        })
+        
+        logger.warning(f"🚨 FRAUD REPORT filed for {email} - Type: {report_type} - Account LOCKED")
+        
+        # Send confirmation email
+        try:
+            email_service.send_fraud_report_confirmation(
+                to_email=email,
+                user_name=user.get('full_name', 'User'),
+                report_type=report_type,
+                report_details=details
+            )
+        except Exception as email_error:
+            logger.error(f"Failed to send fraud report confirmation: {email_error}")
+        
+        return jsonify({
+            'message': 'Fraud report filed successfully. Your account has been temporarily locked for security. Our security team will investigate within 24 hours.',
+            'account_locked': True,
+            'next_steps': [
+                'Your account has been temporarily secured',
+                'Reset your password before logging in again',
+                'Our security team will review within 24 hours',
+                'You will receive an email confirmation'
+            ]
+        }), 200
+        
+    except Exception as e:
+        logger.error(f"❌ Fraud report error: {e}")
+        return jsonify({'error': 'Failed to process fraud report'}), 500
+
+
+@bp.route('/report-fraud', methods=['GET'])
+def report_fraud_page():
+    """
+    Serve a simple fraud report form (for links in emails).
+    Returns JSON with form info - frontend handles the actual form.
+    """
+    return jsonify({
+        'message': 'Report suspicious activity on your Smart Hiring account',
+        'required_fields': {
+            'email': 'Your registered email address',
+            'report_type': 'unauthorized_login | unauthorized_application | account_compromise | other',
+            'details': '(Optional) Describe the suspicious activity'
+        },
+        'endpoint': '/api/auth/report-fraud',
+        'method': 'POST'
+    }), 200
+
+
+@bp.route('/unlock-account', methods=['POST'])
+@rate_limit(max_requests=3, window_seconds=3600)
+def unlock_account():
+    """
+    Unlock a fraud-locked account after password reset.
+    Requires the user to reset their password first, then provide the reset token.
+    """
+    try:
+        data = request.get_json()
+        
+        required_fields = ['email', 'reset_token', 'new_password']
+        for field in required_fields:
+            if field not in data:
+                return jsonify({'error': f'Missing required field: {field}'}), 400
+        
+        email = data['email'].lower().strip()
+        reset_token = data['reset_token']
+        new_password = data['new_password']
+        
+        if not validate_email(email):
+            return jsonify({'error': 'Invalid email format'}), 400
+        
+        # Validate password strength
+        if len(new_password) < 8:
+            return jsonify({'error': 'Password must be at least 8 characters'}), 400
+        
+        has_upper = any(c.isupper() for c in new_password)
+        has_lower = any(c.islower() for c in new_password)
+        has_digit = any(c.isdigit() for c in new_password)
+        
+        if not (has_upper and has_lower and has_digit):
+            return jsonify({'error': 'Password must contain uppercase, lowercase, and numbers'}), 400
+        
+        db = get_db()
+        users_collection = db['users']
+        
+        # Hash the provided token
+        reset_token_hash = hashlib.sha256(reset_token.encode()).hexdigest()
+        
+        # Find locked user with valid reset token
+        user = users_collection.find_one({
+            'email': email,
+            'reset_token': reset_token_hash,
+            'reset_token_expires': {'$gt': datetime.utcnow()},
+            'account_locked': True
+        })
+        
+        if not user:
+            return jsonify({'error': 'Invalid token, email, or account is not locked'}), 400
+        
+        # Hash new password and unlock
+        new_password_hash = bcrypt.generate_password_hash(new_password).decode('utf-8')
+        
+        users_collection.update_one(
+            {'_id': user['_id']},
+            {
+                '$set': {
+                    'password_hash': new_password_hash,
+                    'is_active': True,
+                    'account_locked': False,
+                    'account_unlocked_at': datetime.utcnow(),
+                    'updated_at': datetime.utcnow()
+                },
+                '$unset': {
+                    'reset_token': '',
+                    'reset_token_expires': '',
+                    'account_locked_reason': ''
+                }
+            }
+        )
+        
+        # Update fraud report status
+        db['fraud_reports'].update_many(
+            {'email': email, 'status': 'pending_review'},
+            {'$set': {'status': 'resolved_by_user', 'resolved_at': datetime.utcnow()}}
+        )
+        
+        logger.info(f"✅ Account unlocked for {email} after password reset")
+        
+        return jsonify({
+            'message': 'Account unlocked and password reset successfully. You can now log in.',
+            'success': True
+        }), 200
+        
+    except Exception as e:
+        logger.error(f"❌ Unlock account error: {e}")
         return jsonify({'error': str(e)}), 500

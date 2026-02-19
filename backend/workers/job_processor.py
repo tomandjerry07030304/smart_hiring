@@ -155,14 +155,14 @@ class JobProcessor:
         file_path = data.get('file_path')
         
         # Import here to avoid circular imports
-        from backend.utils.resume_parser import parse_resume
+        from backend.services.resume_parser_service import parse_resume
         
         # Parse resume
         parsed_data = parse_resume(file_path)
         
         # Update candidate profile in database
         if candidate_id and parsed_data:
-            candidates = self.db.get_database().candidates
+            candidates = self.db.get_db().candidates
             
             update_data = {
                 'parsed_resume': parsed_data,
@@ -228,7 +228,7 @@ class JobProcessor:
         from collections import defaultdict
         
         try:
-            db = self.database
+            db = self.db.get_db()
             applications = db['applications']
             
             # Calculate time window based on aggregation type
@@ -315,7 +315,7 @@ class JobProcessor:
         from backend.utils.matching import calculate_match_score
         
         # Get candidate and job data
-        db = self.db.get_database()
+        db = self.db.get_db()
         candidate = db.candidates.find_one({'_id': candidate_id})
         job = db.jobs.find_one({'_id': job_id})
         

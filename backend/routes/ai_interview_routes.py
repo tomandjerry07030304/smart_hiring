@@ -15,6 +15,7 @@ from backend.services.ai_interviewer_service import (
     create_interview_schedule
 )
 from backend.services.ranking_service import rank_candidates_for_job, get_candidate_insights
+from backend.security.rbac import require_permission, Permissions
 
 bp = Blueprint('ai_interview', __name__)
 
@@ -31,6 +32,7 @@ def get_user_info(current_user):
 
 @bp.route('/generate-questions', methods=['POST'])
 @jwt_required()
+@require_permission(Permissions.CREATE_ASSESSMENT)
 def generate_questions():
     """
     Generate AI interview questions for a job
@@ -102,6 +104,7 @@ def generate_questions():
 
 @bp.route('/questions/<job_id>', methods=['GET'])
 @jwt_required()
+@require_permission(Permissions.VIEW_ASSESSMENT)
 def get_job_interview_questions(job_id):
     """Get interview questions for a job"""
     try:
@@ -130,6 +133,7 @@ def get_job_interview_questions(job_id):
 
 @bp.route('/evaluate-answer', methods=['POST'])
 @jwt_required()
+@require_permission(Permissions.GRADE_ASSESSMENT)
 def evaluate_candidate_answer():
     """
     Evaluate a candidate's answer to an interview question
@@ -161,6 +165,7 @@ def evaluate_candidate_answer():
 
 @bp.route('/schedule', methods=['POST'])
 @jwt_required()
+@require_permission(Permissions.MANAGE_APPLICATIONS)
 def create_schedule():
     """
     Create an interview schedule
@@ -208,6 +213,7 @@ def create_schedule():
 
 @bp.route('/rank-candidates', methods=['POST'])
 @jwt_required()
+@require_permission(Permissions.VIEW_CANDIDATES)
 def rank_candidates():
     """
     Rank candidates for a job using ML
@@ -283,6 +289,7 @@ def rank_candidates():
 
 @bp.route('/candidate-insights/<candidate_id>/<job_id>', methods=['GET'])
 @jwt_required()
+@require_permission(Permissions.VIEW_CANDIDATES)
 def get_insights(candidate_id, job_id):
     """Get ML-powered insights for a candidate"""
     try:

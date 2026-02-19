@@ -28,7 +28,11 @@ class EncryptionManager:
         encryption_key = os.getenv('ENCRYPTION_KEY')
         
         if not encryption_key:
-            logger.warning("⚠️ ENCRYPTION_KEY not set. Using default (NOT SECURE FOR PRODUCTION)")
+            env = os.getenv('FLASK_ENV', 'development')
+            if env == 'production':
+                logger.warning("⚠️ ENCRYPTION_KEY not set. Using default (NOT SECURE FOR PRODUCTION)")
+            else:
+                logger.info("ℹ️ Using default encryption key (set ENCRYPTION_KEY in production)")
             # Generate a key from app secret (NOT RECOMMENDED FOR PRODUCTION)
             secret = os.getenv('JWT_SECRET_KEY', 'default-secret-key').encode()
             salt = b'smart-hiring-salt'  # Should be stored securely
@@ -178,16 +182,64 @@ encryption_manager = EncryptionManager()
 
 # Fields that should be encrypted in database
 PII_FIELDS = [
+    'email',
+    'full_name',
     'ssn',
     'social_security_number',
     'national_id',
     'passport_number',
     'phone_number',
+    'phone',
     'date_of_birth',
     'address',
     'salary_expectation',
-    'compensation'
+    'compensation',
+    'aadhaar_number',
+    'pan_number'
 ]
+
+# Fields that need a hash index for lookups (e.g. email)
+HASHED_LOOKUP_FIELDS = ['email']
+
+
+def is_encrypted(value: str) -> bool:
+    """
+    Detect whether a string value is already Fernet-encrypted.
+    Fernet tokens are base64-encoded and start with 'gAAAAAB'.
+    
+    Args:
+        value: String to check
+    
+    Returns:
+        True if the value appears to be a Fernet-encrypted token
+    """
+    if not value or not isinstance(value, str):
+        return False
+    # Fernet tokens are base64url-encoded and typically start with 'gAAAAAB'
+    # After our double base64 encoding they start with longer base64 strings
+    # Check for base64 pattern and minimum length (Fernet tokens are >=120 chars)
+    return len(value) > 100 and value.replace('-', '+').replace('_', '/').isascii()
+
+
+def encrypt_field(value: str) -> Optional[str]:
+    """
+    Encrypt a single field value. Convenience wrapper.
+    Returns None for empty/None input, skips already-encrypted values.
+    """
+    if not value or is_encrypted(str(value)):
+        return value
+    return encryption_manager.encrypt(str(value))
+
+
+def decrypt_field(value: str) -> Optional[str]:
+    """
+    Decrypt a single field value. Convenience wrapper.
+    Returns original value if decryption fails (handles unencrypted legacy data).
+    """
+    if not value:
+        return value
+    result = encryption_manager.decrypt(str(value))
+    return result if result is not None else value
 
 
 def encrypt_pii_fields(data: dict) -> dict:
@@ -200,7 +252,16 @@ def encrypt_pii_fields(data: dict) -> dict:
     Returns:
         Dictionary with PII fields encrypted
     """
-    return encryption_manager.encrypt_dict_fields(data, PII_FIELDS)
+    encrypted = encryption_manager.encrypt_dict_fields(data, PII_FIELDS)
+    
+    # Add hashed lookup fields for indexed searches
+    for field in HASHED_LOOKUP_FIELDS:
+        if field in data and data[field] and not is_encrypted(str(data[field])):
+            encrypted[f"{field}_hash"] = encryption_manager.hash_sensitive_field(
+                str(data[field]).lower().strip()
+            )
+    
+    return encrypted
 
 
 def decrypt_pii_fields(data: dict) -> dict:
