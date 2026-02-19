@@ -1,0 +1,25 @@
+# =============================================================================
+# .gitattributes — GitHub Linguist overrides
+# Mark non-core (frontend/desktop/build) files so GitHub language stats
+# correctly reflect that this is a Python-first project.
+# =============================================================================
+
+# Frontend — vanilla JS served by Flask (not the core application logic)
+frontend/*.js    linguist-vendored
+frontend/*.css   linguist-vendored
+frontend/*.html  linguist-vendored
+
+# Desktop — Electron wrapper around the web app
+desktop/*.js     linguist-vendored
+desktop/*.html   linguist-vendored
+desktop/*.nsh    linguist-vendored
+
+# Build & deploy scripts
+build_scripts/*.ps1  linguist-vendored
+scripts/*.ps1        linguist-vendored
+
+# Spec files
+*.spec  linguist-vendored
+
+# JSON config files
+*.json  linguist-vendored
